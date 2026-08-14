@@ -221,6 +221,17 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get('/api/me/life', requireAuth, asyncRoute(async(req,res)=>{
+  const [characters]=await database().execute(`SELECT reg_id,username,level,gender,age,origin,height,weight,phone,phonecredit,wt,
+    idcard,idcard_time,drivelic,drivelic_time,job,job2,faction,factionrank,family,familyrank,vip,vip_time,
+    health,armour,hunger,bladder,energy,sick,hospital,injured,warn,jail,jail_time,arrest,arrest_time,
+    gold,hopecoin,paycheck,medkit,helmet,mask,couple,charstory,last_login FROM players WHERE ucp=? ORDER BY reg_id`,[req.session.user.username]);
+  const ids=characters.map(x=>x.reg_id),names=characters.map(x=>x.username);let contacts=[],keys=[],playlists=[],toys=[],dealerships=[],workshops=[];
+  if(ids.length){const marks=ids.map(()=>'?').join(',');[contacts]=await database().query(`SELECT ownerid,name,number FROM contact WHERE ownerid IN (${marks}) ORDER BY ownerid,name`,ids);[keys]=await database().query(`SELECT k.owner,k.vehicle,v.model,v.plate,v.health,v.fuel FROM vehicle_keys k LEFT JOIN vehicle v ON v.id=k.vehicle WHERE k.owner IN (${marks})`,ids);[playlists]=await database().query(`SELECT owner,name,link,duration FROM playlist WHERE owner IN (${marks}) ORDER BY id DESC`,ids);[dealerships]=await database().query(`SELECT id,name,ownerid,ownername,balance,type,status,stock,restock FROM dealership WHERE ownerid IN (${marks})`,ids);[workshops]=await database().query(`SELECT id,name,owner,ownerid,money,component,material,status,price FROM workshop WHERE ownerid IN (${marks})`,ids);}
+  if(names.length){const marks=names.map(()=>'?').join(',');[toys]=await database().query(`SELECT Id,Owner,Slot0_Model,Slot1_Model,Slot2_Model,Slot3_Model,Slot4_Model,Slot5_Model FROM toys WHERE Owner IN (${marks})`,names);}
+  res.json({characters,contacts,keys,playlists,toys:toys.map(t=>({...t,activeSlots:[t.Slot0_Model,t.Slot1_Model,t.Slot2_Model,t.Slot3_Model,t.Slot4_Model,t.Slot5_Model].filter(Number).length})),dealerships,workshops});
+}));
+
 app.patch('/api/me/password', requireAuth, asyncRoute(async (req, res) => {
   const currentPassword = String(req.body.currentPassword || '');
   const newPassword = String(req.body.newPassword || '');

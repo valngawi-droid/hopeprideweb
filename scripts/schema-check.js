@@ -23,7 +23,7 @@ for (const sql of [baseSql, webSql]) {
 
 const contract = {
   ucp: ['id','username','password','ip','admin','verifystatus','verifycode','discordid','registerdate'],
-  players: ['reg_id','username','ucp','adminname','admin','helper','level','vip','money','bmoney','phone','hours','minutes','skin','health','armour','hunger','energy','faction','factionrank','factionlead','family','familyrank','job','job2','warn','jail','jail_time','charstory','reg_date','last_login'],
+  players: ['reg_id','username','ucp','adminname','admin','helper','level','vip','money','bmoney','phone','hours','minutes','skin','health','armour','hunger','energy','faction','factionrank','factionlead','family','familyrank','job','job2','warn','jail','jail_time','charstory','reg_date','last_login','gender','age','origin','height','weight','phonecredit','wt','idcard','idcard_time','drivelic','drivelic_time','bladder','sick','hospital','injured','arrest','arrest_time','paycheck','medkit','helmet','mask','couple'],
   vehicle: ['id','owner','model','plate','health','fuel','locked'],
   houses: ['ID','owner','address','price','locked'],
   bisnis: ['ID','owner','name','price','type','locked','money','prod','restock','extposx','extposy','extposz'],
@@ -38,10 +38,13 @@ const contract = {
   blacklist: ['username','player','bannedby','reason','banned_date','banned_expired'],
   player_skill: ['id','owner','name','level','exp'],
   player_fish: ['id','owner','name','weight'],
-  toys: ['Id','Owner'],
+  toys: ['Id','Owner','Slot0_Model','Slot1_Model','Slot2_Model','Slot3_Model','Slot4_Model','Slot5_Model'],
   vehicle_keys: ['id','owner','vehicle'],
   claimvoucher: ['playerid','code'],
   requestcs: ['name','user'],
+  contact: ['id','ownerid','name','number'],
+  playlist: ['id','owner','name','link','duration'],
+  dealership: ['id','name','ownerid','ownername','balance','type','status','stock','restock'],
   web_sessions: ['session_id','expires','data'],
   web_forum_categories: ['id','slug','name','description','icon','sort_order','admin_only','created_at'],
   web_forum_topics: ['id','category_id','author_ucp','title','content','pinned','locked','views','created_at','updated_at'],
