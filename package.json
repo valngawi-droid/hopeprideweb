@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "bot": "node bot.js",
-    "check": "node --check server.js && node --check bot.js && node --check public/app.js"
+    "schema:check": "node scripts/schema-check.js",
+    "check": "node --check server.js && node --check bot.js && node --check public/app.js && npm run schema:check"
   },
   "engines": {
     "node": ">=18"

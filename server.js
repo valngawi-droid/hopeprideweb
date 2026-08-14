@@ -52,7 +52,7 @@ const jobNames = ['Unemployed','Trucker','Bus Driver','Mechanic','Farmer','Fishe
 const factionNames = ['Civilian','San Andreas Police','San Andreas Government','San Andreas Medical','San Andreas News','San Andreas Judiciary'];
 
 function publicStatsFallback() {
-  return { players: 0, ucps: 0, vehicles: 0, properties: 0, businesses: 0, online: 0, database: 'offline', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' };
+  return { players: 0, ucps: 0, vehicles: 0, properties: 0, businesses: 0, families: 0, workshops: 0, online: 0, database: 'offline', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' };
 }
 function clientIp(req) { return String(req.ip || '').replace('::ffff:', '').slice(0, 17) || '127.0.0.1'; }
 function cleanText(value, max = 32) { return String(value || '').trim().slice(0, max); }
@@ -83,12 +83,13 @@ app.get('/api/health', asyncRoute(async (req, res) => {
 app.get('/api/public', asyncRoute(async (req, res) => {
   if (!database()) return res.json(publicStatsFallback());
   try {
-    const [[players], [ucps], [vehicles], [houses], [businesses]] = await Promise.all([
+    const [[players], [ucps], [vehicles], [houses], [businesses], [families], [workshops]] = await Promise.all([
       database().query('SELECT COUNT(*) total FROM players'), database().query('SELECT COUNT(*) total FROM ucp'),
       database().query('SELECT COUNT(*) total FROM vehicle'), database().query('SELECT COUNT(*) total FROM houses'),
-      database().query('SELECT COUNT(*) total FROM bisnis')
+      database().query('SELECT COUNT(*) total FROM bisnis'), database().query('SELECT COUNT(*) total FROM familys'),
+      database().query('SELECT COUNT(*) total FROM workshop')
     ]);
-    res.json({ players: players[0].total, ucps: ucps[0].total, vehicles: vehicles[0].total, properties: houses[0].total, businesses: businesses[0].total, online: Number(process.env.SAMP_ONLINE_PLAYERS || 0), database: 'live', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' });
+    res.json({ players: players[0].total, ucps: ucps[0].total, vehicles: vehicles[0].total, properties: houses[0].total, businesses: businesses[0].total, families:families[0].total, workshops:workshops[0].total, online: Number(process.env.SAMP_ONLINE_PLAYERS || 0), database: 'live', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' });
   } catch { res.json(publicStatsFallback()); }
 }));
 
@@ -149,7 +150,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   ]);
   const names = characters.map(c => c.username);
   const ids = characters.map(c => c.reg_id);
-  let vehicles = [], properties = [], businesses = [], inventory = [], salaries = [];
+  let vehicles = [], properties = [], businesses = [], inventory = [], salaries = [], skills = [], fish = [];
   if (names.length) {
     const marks = names.map(() => '?').join(',');
     [properties] = await db.query(`SELECT ID id, owner, address, price, locked FROM houses WHERE owner IN (${marks}) ORDER BY ID DESC`, names);
@@ -160,6 +161,8 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
     [vehicles] = await db.query(`SELECT id, owner, model, plate, health, fuel, locked FROM vehicle WHERE owner IN (${marks}) ORDER BY id DESC`, ids);
     [inventory] = await db.query(`SELECT item, SUM(quantity) quantity FROM inventory WHERE ownerid IN (${marks}) GROUP BY item ORDER BY quantity DESC LIMIT 24`, ids);
     [salaries] = await db.query(`SELECT info, money, date FROM salary WHERE owner IN (${marks}) ORDER BY id DESC LIMIT 10`, ids);
+    [skills] = await db.query(`SELECT owner, name, level, exp FROM player_skill WHERE owner IN (${marks}) ORDER BY owner, level DESC`, ids);
+    [fish] = await db.query(`SELECT owner, name, weight FROM player_fish WHERE owner IN (${marks}) ORDER BY weight DESC LIMIT 20`, ids);
   }
   const adminLevel = Math.max(Number(ucpRows[0].admin || 0), ...characters.map(c => Number(c.admin || 0)), 0);
   res.json({
@@ -168,7 +171,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
     properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })),
     businesses: businesses.map(b => ({ ...b, locked:Boolean(b.locked), typeName:['','Warung & Restoran','Toko Umum','Toko Pakaian','Usaha Khusus'][b.type] || `Bisnis ${b.type}` })),
-    inventory, salaries
+    inventory, salaries, skills, fish
   });
 }));
 

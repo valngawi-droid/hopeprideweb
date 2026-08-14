@@ -10,6 +10,7 @@
 </head>
 <body>
   <div class="noise"></div>
+  <div class="server-notice"><span class="notice-live"></span><b>HOPE PRIDE ROLEPLAY</b><span>Server Address:</span><strong id="notice-server-ip">Belum dikonfigurasi</strong><button class="notice-copy" data-copy="">SALIN</button><div class="notice-links"><a href="#portal">Community</a><a href="#guide">Panduan</a><button class="open-auth">UCP</button></div></div>
   <header class="nav" id="nav">
     <a class="brand" href="#home" aria-label="Hope Pride Roleplay"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>ROLEPLAY</small></span></a>
     <nav class="nav-links"><a class="active" href="#home">Beranda</a><a href="#features">Fitur</a><a href="#city">Direktori Kota</a><a href="#guide">Panduan</a><a href="#community">Komunitas</a></nav>
@@ -37,6 +38,26 @@
       <div class="status-stat"><strong id="stat-vehicles">393</strong><span>KENDARAAN DIMILIKI</span></div>
       <div class="status-stat"><strong id="stat-properties">303</strong><span>PROPERTI KOTA</span></div>
       <div class="restart"><small>WAKTU SERVER</small><strong id="server-clock">00:00:00 WIB</strong></div>
+    </section>
+
+    <section class="portal section" id="portal">
+      <div class="portal-header reveal"><div><div class="section-kicker"><span>COMMUNITY</span> HOPE PRIDE HUB</div><h2>PUSAT <em>KOMUNITAS.</em></h2><p>Portal informasi bergaya community board—ringkas, terstruktur, dan terhubung dengan seluruh sistem Hope Pride.</p></div><div class="portal-actions"><button class="btn btn-primary open-register">Buat UCP</button><a class="btn btn-ghost" href="#guide">Panduan Pemula</a></div></div>
+      <div class="useful-links reveal"><b>USEFUL LINKS</b><a href="#guide">Cara Bermain</a><a href="#rules-board">Peraturan Server</a><a href="#city">Direktori Kota</a><a href="#community">Discord</a><button class="open-auth">User Control Panel</button></div>
+      <div class="portal-layout">
+        <div class="forum-board reveal">
+          <div class="forum-category"><div class="forum-category-title"><span>HOPE PRIDE ROLEPLAY</span><small>Informasi resmi dan layanan pemain</small></div>
+            <a class="forum-row" href="#community"><span class="forum-icon">✦</span><span class="forum-main"><b>Announcements & Information</b><small>Pengumuman, maintenance, dan informasi resmi Hope Pride.</small></span><span class="forum-last"><b>Official Updates</b><small>Management Team</small></span><span class="forum-arrow">›</span></a>
+            <a class="forum-row" id="rules-board" href="#guide"><span class="forum-icon">§</span><span class="forum-main"><b>Server Rules & Guides</b><small>Peraturan dasar roleplay, panduan UCP, dan tutorial pemain baru.</small></span><span class="forum-last"><b>Wajib dibaca</b><small>New Player Guide</small></span><span class="forum-arrow">›</span></a>
+            <a class="forum-row" href="#community"><span class="forum-icon">?</span><span class="forum-main"><b>Help Center & Support</b><small>Bantuan akun, Discord, pertanyaan, dan laporan masalah.</small></span><span class="forum-last"><b>Support Center</b><small>Staff available</small></span><span class="forum-arrow">›</span></a>
+          </div>
+          <div class="forum-category"><div class="forum-category-title"><span>ROLEPLAY COMMUNITY</span><small>Hidupkan cerita dan organisasimu</small></div>
+            <a class="forum-row" href="#city"><span class="forum-icon">⌂</span><span class="forum-main"><b>City Life & Business</b><small>Warung, toko pakaian, bisnis warga, rumah, dan ekonomi kota.</small></span><span class="forum-last"><b><span id="forum-businesses">0</span> bisnis</b><small>Database kota</small></span><span class="forum-arrow">›</span></a>
+            <div class="forum-row"><span class="forum-icon">⚑</span><span class="forum-main"><b>Faction & Government</b><small>Instansi pemerintah, faction resmi, dan pelayanan publik.</small></span><span class="forum-last"><b><span id="forum-characters">0</span> character</b><small>Terdaftar</small></span><span class="forum-arrow">›</span></div>
+            <div class="forum-row"><span class="forum-icon">◇</span><span class="forum-main"><b>Families & Organizations</b><small>Komunitas IC, family, organisasi, dan perkembangan cerita.</small></span><span class="forum-last"><b><span id="forum-families">0</span> family</b><small>Hope City</small></span><span class="forum-arrow">›</span></div>
+          </div>
+        </div>
+        <aside class="portal-sidebar reveal"><div class="side-widget"><div class="widget-title">SERVER STATUS <span id="portal-db-dot"></span></div><div class="server-big"><b id="portal-online">0</b><span>/ 500 pemain</span></div><div class="widget-row"><span>Character</span><b id="portal-characters">0</b></div><div class="widget-row"><span>Kendaraan</span><b id="portal-vehicles">0</b></div><div class="widget-row"><span>Properti</span><b id="portal-properties">0</b></div></div><div class="side-widget join-widget"><span>START YOUR STORY</span><h3>Belum menjadi warga?</h3><p>Buat satu UCP, verifikasi melalui Discord, lalu mulai perjalanan roleplay-mu.</p><button class="btn btn-primary full open-register">Daftar Sekarang</button></div></aside>
+      </div>
     </section>
 
     <section class="intro section" id="features">
@@ -72,7 +93,7 @@
   </main>
 
   <section id="dashboard" class="dashboard hidden">
-    <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>CONTROL PANEL</small></span></a><nav id="dash-nav"><button class="active" data-view="overview">⌂ <span>Ringkasan</span></button><button data-view="characters">♙ <span>Character IC</span></button><button data-view="vehicles">◇ <span>Kendaraan</span></button><button data-view="properties">⌂ <span>Properti</span></button><button data-view="businesses">▤ <span>Bisnis</span></button><button data-view="inventory">▦ <span>Inventori</span></button><button data-view="salary">↗ <span>Riwayat Gaji</span></button><button data-view="settings">⚙ <span>Pengaturan UCP</span></button><button data-view="admin" id="admin-nav" class="hidden">◆ <span>Admin Panel</span></button></nav><div class="side-bottom"><button id="back-site">← &nbsp; Website</button><button id="logout">↪ &nbsp; Keluar</button></div></aside>
+    <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>CONTROL PANEL</small></span></a><nav id="dash-nav"><button class="active" data-view="overview">⌂ <span>Ringkasan</span></button><button data-view="characters">♙ <span>Character IC</span></button><button data-view="vehicles">◇ <span>Kendaraan</span></button><button data-view="properties">⌂ <span>Properti</span></button><button data-view="businesses">▤ <span>Bisnis</span></button><button data-view="inventory">▦ <span>Inventori</span></button><button data-view="salary">↗ <span>Riwayat Gaji</span></button><button data-view="progress">★ <span>Skill & Koleksi</span></button><button data-view="settings">⚙ <span>Pengaturan UCP</span></button><button data-view="admin" id="admin-nav" class="hidden">◆ <span>Admin Panel</span></button></nav><div class="side-bottom"><button id="back-site">← &nbsp; Website</button><button id="logout">↪ &nbsp; Keluar</button></div></aside>
     <div class="dash-main"><header class="dash-header"><div><small>USER CONTROL PANEL</small><h2 id="view-title">Ringkasan Akun</h2></div><div class="account-chip"><span id="avatar-letter">H</span><div><b id="account-name">HopePlayer</b><small><i></i> Terverifikasi</small></div></div></header><div id="dash-content" class="dash-content"></div></div>
   </section>
 
