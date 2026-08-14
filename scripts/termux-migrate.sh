@@ -11,7 +11,7 @@ fi
 if ! mariadb-admin ping --silent >/dev/null 2>&1; then echo "MariaDB gagal aktif. Periksa mariadb.log."; exit 1; fi
 mariadb -u root hope < migrations/001_web_forum.sql
 DB_USER="$(node -e "require('dotenv').config({quiet:true});process.stdout.write(process.env.DB_USER||'hope_web')")"
-mariadb -u root -e "GRANT DELETE ON \`hope\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+mariadb -u root -e "GRANT DELETE ON \`hope\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; GRANT DELETE ON \`hope\`.\`requestcs\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
 if ! grep -q '^APP_URL=' .env; then
   printf '\nAPP_URL=http://127.0.0.1:3000\nENFORCE_CANONICAL_URL=true\n' >> .env
 fi

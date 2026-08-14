@@ -72,7 +72,7 @@ fi
 
 echo "[4.5/5] Menerapkan migrasi forum dan session website..."
 mariadb -u root "$DB_NAME" < "$APP_DIR/migrations/001_web_forum.sql"
-mariadb -u root -e "GRANT DELETE ON \`${DB_NAME}\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+mariadb -u root -e "GRANT DELETE ON \`${DB_NAME}\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; GRANT DELETE ON \`${DB_NAME}\`.\`requestcs\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
 
 if [[ ! -f "$ENV_FILE" ]]; then
 cat > "$ENV_FILE" <<ENV
@@ -89,6 +89,8 @@ DB_PASSWORD=${DB_PASSWORD}
 DB_POOL_SIZE=5
 SAMP_SERVER_ADDRESS=
 SAMP_ONLINE_PLAYERS=0
+RTM_ALERT_AMOUNT=1000000
+RTM_REPEAT_COUNT=3
 
 # Buat ulang token yang bocor di Discord Developer Portal, lalu isi di bawah.
 DISCORD_CLIENT_ID=1457210040871161977

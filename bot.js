@@ -44,9 +44,18 @@ const commands = [
     .addStringOption(o => o.setName('kategori').setDescription('Kategori peringkat').setRequired(true).addChoices(
       { name:'Level tertinggi', value:'level' }, { name:'Jam bermain', value:'hours' }
     )),
+  new SlashCommandBuilder().setName('request-cs').setDescription('Ajukan Character Story untuk character milikmu.')
+    .addStringOption(o=>o.setName('character').setDescription('Nama Character IC').setRequired(true).setMaxLength(24)),
   new SlashCommandBuilder().setName('reset-password').setDescription('Ganti password UCP melalui Discord terhubung.')
     .addStringOption(o => o.setName('password_baru').setDescription('Minimal 8 karakter').setRequired(true).setMinLength(8).setMaxLength(72))
     .addStringOption(o => o.setName('konfirmasi').setDescription('Ulangi password baru').setRequired(true).setMinLength(8).setMaxLength(72)),
+  new SlashCommandBuilder().setName('admin-cmdlogs').setDescription('Lihat log command administrator terbaru.')
+    .addStringOption(o=>o.setName('cari').setDescription('Command, admin, atau player').setMaxLength(40)),
+  new SlashCommandBuilder().setName('admin-paylogs').setDescription('Monitor transfer besar dan pola transaksi berulang.')
+    .addStringOption(o=>o.setName('player').setDescription('Nama player').setMaxLength(24)),
+  new SlashCommandBuilder().setName('admin-request-cs').setDescription('Review Request Character Story.')
+    .addStringOption(o=>o.setName('character').setDescription('Nama Character').setRequired(true).setMaxLength(24))
+    .addStringOption(o=>o.setName('aksi').setDescription('Keputusan').setRequired(true).addChoices({name:'Approve',value:'approve'},{name:'Reject',value:'reject'})),
   new SlashCommandBuilder().setName('admin-stats').setDescription('Statistik lengkap khusus administrator.'),
   new SlashCommandBuilder().setName('admin-ucp').setDescription('Cari dan kelola verifikasi sebuah UCP.')
     .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
@@ -156,7 +165,7 @@ client.on('interactionCreate', async interaction => {
     }
     if (interaction.commandName === 'bantuan') {
       return interaction.reply({ embeds:[embed('Hope Pride Bot • Bantuan',
-        '**Akun**\n`/id` `/verify` `/akun` `/reset-password`\n\n**Character & Kota**\n`/karakter` `/aset` `/inventori` `/leaderboard` `/server`\n\n**Administrator**\n`/admin-stats` `/admin-ucp` `/admin-player` `/admin-cari` `/admin-discord` `/admin-reset-verifikasi` `/admin-add-bisnis` `/admin-voucher`\n\nSemua informasi privat dikirim secara ephemeral dan dibaca langsung dari database.')], flags:hidden });
+        '**Akun**\n`/id` `/verify` `/akun` `/request-cs` `/reset-password`\n\n**Character & Kota**\n`/karakter` `/aset` `/inventori` `/leaderboard` `/server`\n\n**Administrator**\n`/admin-stats` `/admin-cmdlogs` `/admin-paylogs` `/admin-request-cs` `/admin-ucp` `/admin-player` `/admin-cari` `/admin-discord` `/admin-reset-verifikasi` `/admin-add-bisnis` `/admin-voucher`\n\nSemua informasi privat dikirim secara ephemeral dan dibaca langsung dari database.')], flags:hidden });
     }
     if (interaction.commandName === 'aset') {
       const ucp=await ownUcp(interaction.user.id);
@@ -186,6 +195,17 @@ client.on('interactionCreate', async interaction => {
       const text=rows.map((p,i)=>`**${i+1}. ${p.username}** — ${category==='hours'?`${p.hours} jam`:`Level ${p.level}`}`).join('\n');
       return interaction.reply({embeds:[embed(`Leaderboard • ${category==='hours'?'Jam Bermain':'Level'}`,text)]});
     }
+    if(interaction.commandName==='request-cs'){
+      const ucp=await ownUcp(interaction.user.id),name=interaction.options.getString('character',true);
+      if(!ucp)return interaction.reply({content:'Discord ID ini belum terhubung ke UCP.',flags:hidden});
+      const [players]=await db.execute('SELECT username,charstory FROM players WHERE username=? AND ucp=? LIMIT 1',[name,ucp.username]);
+      if(!players[0])return interaction.reply({content:'Character tidak ditemukan atau bukan milik UCP kamu.',flags:hidden});
+      if(Number(players[0].charstory)>0)return interaction.reply({content:'Character Story sudah aktif.',flags:hidden});
+      const [existing]=await db.execute('SELECT name FROM requestcs WHERE name=? OR user=? LIMIT 1',[name,ucp.username]);
+      if(existing.length)return interaction.reply({content:'Sudah ada Request CS yang menunggu.',flags:hidden});
+      await db.execute('INSERT INTO requestcs (name,user) VALUES (?,?)',[name,ucp.username]);
+      return interaction.reply({embeds:[embed('Request CS Terkirim',`Character **${name}** masuk antrean review staff.`)],flags:hidden});
+    }
     if (interaction.commandName === 'reset-password') {
       const pass=interaction.options.getString('password_baru',true), confirm=interaction.options.getString('konfirmasi',true);
       if(pass!==confirm) return interaction.reply({content:'❌ Konfirmasi password tidak sama.',flags:hidden});
@@ -194,6 +214,17 @@ client.on('interactionCreate', async interaction => {
       const hash=await bcrypt.hash(pass,12);
       await db.execute('UPDATE ucp SET password=? WHERE id=?',[hash,ucp.id]);
       return interaction.reply({embeds:[embed('Password Berhasil Diubah',`Password UCP **${ucp.username}** telah diperbarui. Jangan pernah membagikan password kepada siapa pun.`)],flags:hidden});
+    }
+    if(interaction.commandName==='admin-cmdlogs'){
+      if(!(await requireAdmin(interaction)))return;const q=interaction.options.getString('cari'),params=[];let where='';if(q){where='WHERE command LIKE ? OR admin LIKE ? OR player LIKE ?';params.push(...Array(3).fill(`%${q}%`));}
+      const [rows]=await db.execute(`SELECT command,admin,player,str,time FROM logstaff ${where} ORDER BY time DESC LIMIT 10`,params);const text=rows.map(x=>`\`${x.command}\` **${x.admin}** → ${x.player}\n${x.str} • <t:${x.time}:R>`).join('\n\n')||'Tidak ada log.';return interaction.reply({embeds:[embed('Admin Command Logs',text)],flags:hidden});
+    }
+    if(interaction.commandName==='admin-paylogs'){
+      if(!(await requireAdmin(interaction)))return;const q=interaction.options.getString('player'),threshold=Number(process.env.RTM_ALERT_AMOUNT||1000000),params=[];let where='';if(q){where='WHERE player=? OR toplayer=?';params.push(q,q);}
+      const [rows]=await db.execute(`SELECT player,toplayer,ammount,time FROM logpay ${where} ORDER BY time DESC LIMIT 10`,params);const text=rows.map(x=>`${x.ammount>=threshold?'🚩':'•'} **${x.player}** → **${x.toplayer}**\n${rupiah(x.ammount)} • <t:${x.time}:R>`).join('\n\n')||'Tidak ada transaksi.';return interaction.reply({embeds:[embed('Payment Abuse Monitor',text+'\n\n*Flag adalah indikator review, bukan vonis RTM.*')],flags:hidden});
+    }
+    if(interaction.commandName==='admin-request-cs'){
+      if(!(await requireAdmin(interaction)))return;const name=interaction.options.getString('character',true),action=interaction.options.getString('aksi',true);const [rows]=await db.execute('SELECT name FROM requestcs WHERE name=? LIMIT 1',[name]);if(!rows.length)return interaction.reply({content:'Request CS tidak ditemukan.',flags:hidden});if(action==='approve')await db.execute('UPDATE players SET charstory=1 WHERE username=?',[name]);await db.execute('DELETE FROM requestcs WHERE name=?',[name]);return interaction.reply({embeds:[embed('Request CS Diproses',`**${name}** telah **${action}**.`)],flags:hidden});
     }
     if (interaction.commandName === 'admin-stats') {
       if (!(await requireAdmin(interaction))) return;

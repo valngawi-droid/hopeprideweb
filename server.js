@@ -182,7 +182,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const db = database();
   const [[ucpRows], [characters]] = await Promise.all([
     db.execute('SELECT username, admin, verifystatus, verifycode, discordid, registerdate FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]),
-    db.execute(`SELECT reg_id, username, level, admin, helper, hours, minutes, money, bmoney, phone, job, faction, factionrank, vip, skin, health, armour, hunger, energy, last_login FROM players WHERE ucp = ? ORDER BY reg_id`, [req.session.user.username])
+    db.execute(`SELECT reg_id, username, level, admin, helper, charstory, hours, minutes, money, bmoney, phone, job, faction, factionrank, vip, skin, health, armour, hunger, energy, last_login FROM players WHERE ucp = ? ORDER BY reg_id`, [req.session.user.username])
   ]);
   const names = characters.map(c => c.username);
   const ids = characters.map(c => c.reg_id);
@@ -203,7 +203,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const adminLevel = Math.max(Number(ucpRows[0].admin || 0), ...characters.map(c => Number(c.admin || 0)), 0);
   res.json({
     ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: adminLevel, isAdmin: adminLevel > 0, gamePin: ucpRows[0].verifycode, discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
-    characters: characters.map(c => ({ id:c.reg_id, name:c.username, level:c.level, hours:c.hours, minutes:c.minutes, money:c.money, bank:c.bmoney, phone:c.phone, job:jobNames[c.job] || `Job ${c.job}`, faction:factionNames[c.faction] || `Faction ${c.faction}`, factionRank:c.factionrank, vip:c.vip, skin:c.skin, health:c.health, armour:c.armour, hunger:c.hunger, energy:c.energy, lastLogin:c.last_login, vehicles:vehicles.filter(v=>Number(v.owner)===Number(c.reg_id)).length, houses:properties.filter(h=>h.owner===c.username).length })),
+    characters: characters.map(c => ({ id:c.reg_id, name:c.username, level:c.level, charstory:Boolean(c.charstory), hours:c.hours, minutes:c.minutes, money:c.money, bank:c.bmoney, phone:c.phone, job:jobNames[c.job] || `Job ${c.job}`, faction:factionNames[c.faction] || `Faction ${c.faction}`, factionRank:c.factionrank, vip:c.vip, skin:c.skin, health:c.health, armour:c.armour, hunger:c.hunger, energy:c.energy, lastLogin:c.last_login, vehicles:vehicles.filter(v=>Number(v.owner)===Number(c.reg_id)).length, houses:properties.filter(h=>h.owner===c.username).length })),
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
     properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })),
     businesses: businesses.map(b => ({ ...b, locked:Boolean(b.locked), typeName:['','Warung & Restoran','Toko Umum','Toko Pakaian','Usaha Khusus'][b.type] || `Bisnis ${b.type}` })),
@@ -234,6 +234,29 @@ app.patch('/api/me/discord', requireAuth, asyncRoute(async (req, res) => {
   const verifyCode = `HP-${crypto.randomInt(100000, 999999)}`;
   await database().execute('UPDATE ucp SET discordid = ?, verifystatus = 0, verifycode = ? WHERE id = ?', [discordId, verifyCode, req.session.user.id]);
   res.json({ ok:true, verifyCode, message:'Discord ID diperbarui. Verifikasi ulang melalui bot Discord.' });
+}));
+
+app.get('/api/me/request-cs', requireAuth, asyncRoute(async(req,res)=>{
+  const [rows]=await database().execute(`SELECT r.name,r.user,p.reg_id,p.level,p.charstory,p.last_login FROM requestcs r LEFT JOIN players p ON p.username=r.name WHERE r.user=? ORDER BY r.name`,[req.session.user.username]);
+  res.json({requests:rows});
+}));
+
+app.post('/api/me/request-cs', requireAuth, asyncRoute(async(req,res)=>{
+  const name=cleanText(req.body.character,24);
+  const [players]=await database().execute('SELECT reg_id,username,charstory FROM players WHERE username=? AND ucp=? LIMIT 1',[name,req.session.user.username]);
+  if(!players[0])return res.status(404).json({error:'Character tidak ditemukan atau bukan milik UCP ini.'});
+  if(Number(players[0].charstory)>0)return res.status(409).json({error:'Character Story sudah aktif untuk character ini.'});
+  const [existing]=await database().execute('SELECT name FROM requestcs WHERE name=? OR user=? LIMIT 1',[name,req.session.user.username]);
+  if(existing.length)return res.status(409).json({error:'UCP atau character sudah memiliki request yang menunggu.'});
+  await database().execute('INSERT INTO requestcs (name,user) VALUES (?,?)',[name,req.session.user.username]);
+  res.status(201).json({ok:true,message:`Request Character Story ${name} berhasil dikirim.`});
+}));
+
+app.delete('/api/me/request-cs/:name', requireAuth, asyncRoute(async(req,res)=>{
+  const name=cleanText(req.params.name,24);
+  const [result]=await database().execute('DELETE FROM requestcs WHERE name=? AND user=?',[name,req.session.user.username]);
+  if(!result.affectedRows)return res.status(404).json({error:'Request tidak ditemukan.'});
+  res.json({ok:true});
 }));
 
 app.get('/api/forum/categories', requireForum, asyncRoute(async (req, res) => {
@@ -352,6 +375,44 @@ app.post('/api/admin/ucp/:id/reset-verification', requireAdmin, asyncRoute(async
   const [result] = await database().execute('UPDATE ucp SET verifystatus = 0, verifycode = ? WHERE id = ?', [verifyCode, id]);
   if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
   res.json({ ok:true, verifyCode });
+}));
+
+app.get('/api/admin/request-cs', requireAdmin, asyncRoute(async(req,res)=>{
+  const [rows]=await database().query(`SELECT r.name,r.user,p.reg_id,p.level,p.hours,p.last_login,p.charstory FROM requestcs r LEFT JOIN players p ON p.username=r.name ORDER BY p.reg_id`);
+  res.json({requests:rows,total:rows.length});
+}));
+
+app.post('/api/admin/request-cs/:name/decision', requireAdmin, asyncRoute(async(req,res)=>{
+  const name=cleanText(req.params.name,24),action=String(req.body.action||'');
+  if(!['approve','reject'].includes(action))return res.status(400).json({error:'Keputusan tidak valid.'});
+  const [requests]=await database().execute('SELECT name,user FROM requestcs WHERE name=? LIMIT 1',[name]);
+  if(!requests[0])return res.status(404).json({error:'Request CS tidak ditemukan.'});
+  if(action==='approve')await database().execute('UPDATE players SET charstory=1 WHERE username=?',[name]);
+  await database().execute('DELETE FROM requestcs WHERE name=?',[name]);
+  await database().execute('INSERT INTO logstaff (command,admin,adminid,player,playerid,str,time) VALUES (?,?, -1,?, -1,?,?)',['REQUESTCS',req.session.user.username,name,action,Math.floor(Date.now()/1000)]).catch(()=>{});
+  res.json({ok:true,action});
+}));
+
+app.get('/api/admin/command-logs', requireAdmin, asyncRoute(async(req,res)=>{
+  const q=cleanText(req.query.q,50),page=Math.max(1,Number(req.query.page)||1),limit=50,offset=(page-1)*limit;
+  const params=[],clauses=[];if(q){clauses.push('(command LIKE ? OR admin LIKE ? OR player LIKE ? OR str LIKE ?)');params.push(...Array(4).fill(`%${q}%`));}
+  const where=clauses.length?`WHERE ${clauses.join(' AND ')}`:'';
+  const [rows]=await database().execute(`SELECT command,admin,adminid,player,playerid,str,time FROM logstaff ${where} ORDER BY time DESC LIMIT ${limit} OFFSET ${offset}`,params);
+  const [counts]=await database().execute(`SELECT COUNT(*) total,COUNT(DISTINCT admin) admins,COUNT(DISTINCT command) commands FROM logstaff ${where}`,params);
+  res.json({logs:rows,summary:counts[0],page});
+}));
+
+app.get('/api/admin/pay-logs', requireAdmin, asyncRoute(async(req,res)=>{
+  const q=cleanText(req.query.q,40),page=Math.max(1,Number(req.query.page)||1),limit=50,offset=(page-1)*limit;
+  const configuredThreshold=Number(process.env.RTM_ALERT_AMOUNT||1000000),configuredRepeat=Number(process.env.RTM_REPEAT_COUNT||3);
+  const threshold=Number.isFinite(configuredThreshold)?Math.max(1,configuredThreshold):1000000,repeatLimit=Number.isFinite(configuredRepeat)?Math.max(2,configuredRepeat):3;
+  const params=[],clauses=[];if(q){clauses.push('(player LIKE ? OR toplayer LIKE ?)');params.push(`%${q}%`,`%${q}%`);}
+  const where=clauses.length?`WHERE ${clauses.join(' AND ')}`:'';
+  const [rows]=await database().execute(`SELECT player,playerid,toplayer,toplayerid,ammount,time FROM logpay ${where} ORDER BY time DESC LIMIT ${limit} OFFSET ${offset}`,params);
+  const [[summary]]=await database().query(`SELECT COUNT(*) transfers,COALESCE(SUM(ammount),0) volume,COALESCE(MAX(ammount),0) largest,SUM(ammount>=${threshold}) high_value FROM logpay`);
+  const [repeated]=await database().query(`SELECT player,toplayer,COUNT(*) transfers,SUM(ammount) volume FROM logpay GROUP BY player,toplayer HAVING COUNT(*)>=${repeatLimit} ORDER BY volume DESC LIMIT 20`);
+  const repeatedPairs=new Set(repeated.map(x=>`${x.player}\u0000${x.toplayer}`));
+  res.json({logs:rows.map(x=>({...x,risk:x.ammount>=threshold?'HIGH_VALUE':repeatedPairs.has(`${x.player}\u0000${x.toplayer}`)?'REPEATED':'NORMAL'})),summary,repeated,threshold,page});
 }));
 
 app.get('/api/admin/insights', requireAdmin, asyncRoute(async(req,res)=>{

@@ -4,7 +4,7 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 
 ## Fitur
 
-- Landing page responsif dengan status server, fitur, panduan, dan komunitas
+- UI biru modern dan responsif untuk landing page, forum, UCP, serta Administrator Control
 - Login UCP menggunakan tabel `ucp` dan verifikasi hash bcrypt `$2b$`
 - Registrasi UCP langsung ke kolom yang tersedia dan menampilkan PIN aktivasi in-game dari `ucp.verifycode`
 - Dashboard karakter IC dari tabel `players`
@@ -90,6 +90,17 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 | Riwayat gaji | `salary.owner = players.reg_id` |
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. PIN aktivasi in-game menggunakan format `HP-######` dan disimpan pada kolom asli `ucp.verifycode`. PIN ditampilkan setelah registrasi serta pada Ringkasan dan Pengaturan UCP. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
+
+## Request CS dan abuse monitoring
+
+- Pemain dapat mengajukan Character Story melalui UCP atau `/request-cs`.
+- Request menggunakan tabel asli `requestcs`; approval mengaktifkan `players.charstory`.
+- Admin dapat approve/reject dari tab **Request CS** atau `/admin-request-cs`.
+- Tab **CMD & Pay Logs** membaca tabel asli `logstaff` dan `logpay`.
+- Transfer bernilai tinggi dan pasangan transfer berulang diberi flag untuk investigasi.
+- Flag bukan vonis RTM; keputusan tetap membutuhkan bukti dan review administrator.
+- Ambang dapat diatur melalui `RTM_ALERT_AMOUNT` dan `RTM_REPEAT_COUNT`.
+- Slash command `/admin-cmdlogs` dan `/admin-paylogs` tersedia untuk monitoring cepat.
 
 ## Administrator Command Center
 

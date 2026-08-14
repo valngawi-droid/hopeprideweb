@@ -23,7 +23,7 @@ for (const sql of [baseSql, webSql]) {
 
 const contract = {
   ucp: ['id','username','password','ip','admin','verifystatus','verifycode','discordid','registerdate'],
-  players: ['reg_id','username','ucp','adminname','admin','helper','level','vip','money','bmoney','phone','hours','minutes','skin','health','armour','hunger','energy','faction','factionrank','factionlead','family','familyrank','job','job2','warn','jail','jail_time','reg_date','last_login'],
+  players: ['reg_id','username','ucp','adminname','admin','helper','level','vip','money','bmoney','phone','hours','minutes','skin','health','armour','hunger','energy','faction','factionrank','factionlead','family','familyrank','job','job2','warn','jail','jail_time','charstory','reg_date','last_login'],
   vehicle: ['id','owner','model','plate','health','fuel','locked'],
   houses: ['ID','owner','address','price','locked'],
   bisnis: ['ID','owner','name','price','type','locked','money','prod','restock','extposx','extposy','extposz'],
@@ -32,6 +32,7 @@ const contract = {
   familys: ['ID','name','leader','motd','color'],
   vouchers: ['id','code','vip','vip_time','gold','admin','expired'],
   logstaff: ['command','admin','adminid','player','playerid','str','time'],
+  logpay: ['player','playerid','toplayer','toplayerid','ammount','time'],
   workshop: ['id','owner','ownerid','name','status','price','money','component','material'],
   server: ['id','servermoney','material','materialprice','component','componentprice','gasoil','gasoilprice','product','productprice','food','foodprice','hopecoin','hopecoinprice'],
   blacklist: ['username','player','bannedby','reason','banned_date','banned_expired'],
