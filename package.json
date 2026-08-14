@@ -9,6 +9,7 @@
     "start": "node server.js",
     "bot": "node bot.js",
     "schema:check": "node scripts/schema-check.js",
+    "migrate:termux": "bash scripts/termux-migrate.sh",
     "check": "node --check server.js && node --check bot.js && node --check public/app.js && npm run schema:check"
   },
   "engines": {

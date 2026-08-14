@@ -13,7 +13,7 @@
   <div class="server-notice"><span class="notice-live"></span><b>HOPE PRIDE ROLEPLAY</b><span>Server Address:</span><strong id="notice-server-ip">Belum dikonfigurasi</strong><button class="notice-copy" data-copy="">SALIN</button><div class="notice-links"><a href="#portal">Community</a><a href="#guide">Panduan</a><button class="open-auth">UCP</button></div></div>
   <header class="nav" id="nav">
     <a class="brand" href="#home" aria-label="Hope Pride Roleplay"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>ROLEPLAY</small></span></a>
-    <nav class="nav-links"><a class="active" href="#home">Beranda</a><a href="#features">Fitur</a><a href="#city">Direktori Kota</a><a href="#guide">Panduan</a><a href="#community">Komunitas</a></nav>
+    <nav class="nav-links"><a class="active" href="#home">Beranda</a><a href="#portal">Portal</a><a href="#forums">Forums</a><a href="#city">Direktori Kota</a><a href="#guide">Panduan</a></nav>
     <div class="nav-actions"><button class="icon-btn mobile-menu" aria-label="Menu">☰</button><button class="btn btn-ghost open-auth">Masuk</button><button class="btn btn-primary open-register">Buat UCP <span>↗</span></button></div>
   </header>
 
@@ -58,6 +58,15 @@
         </div>
         <aside class="portal-sidebar reveal"><div class="side-widget"><div class="widget-title">SERVER STATUS <span id="portal-db-dot"></span></div><div class="server-big"><b id="portal-online">0</b><span>/ 500 pemain</span></div><div class="widget-row"><span>Character</span><b id="portal-characters">0</b></div><div class="widget-row"><span>Kendaraan</span><b id="portal-vehicles">0</b></div><div class="widget-row"><span>Properti</span><b id="portal-properties">0</b></div></div><div class="side-widget join-widget"><span>START YOUR STORY</span><h3>Belum menjadi warga?</h3><p>Buat satu UCP, verifikasi melalui Discord, lalu mulai perjalanan roleplay-mu.</p><button class="btn btn-primary full open-register">Daftar Sekarang</button></div></aside>
       </div>
+    </section>
+
+    <section class="live-forum section" id="forums">
+      <div class="forum-live-header reveal"><div><div class="section-kicker"><span>LIVE</span> COMMUNITY FORUMS</div><h2>FORUM <em>WARGA.</em></h2><p>Diskusi komunitas yang terhubung dengan UCP—tanpa akun forum terpisah.</p></div><button class="btn btn-primary" id="new-topic-button">+ Buat Topic</button></div>
+      <div class="forum-app reveal">
+        <aside class="forum-category-nav"><div class="forum-app-label">CATEGORIES</div><button class="active" data-forum-category="0"><span>◈</span><b>Semua Topic</b></button><div id="forum-category-list"></div></aside>
+        <main class="forum-content"><div class="forum-content-bar"><button id="forum-back" class="hidden">← Kembali</button><div class="forum-search"><input id="forum-search-input" placeholder="Cari topic atau author..."><button id="forum-search-button">Cari</button></div></div><div id="forum-content-list"><div class="forum-empty">Memuat forum komunitas...</div></div></main>
+      </div>
+      <div class="forum-compose hidden" id="forum-compose"><div class="compose-card"><button class="compose-close">×</button><h3>BUAT TOPIC BARU</h3><form id="new-topic-form"><label>KATEGORI<select name="categoryId" id="topic-category" required></select></label><label>JUDUL<input name="title" minlength="5" maxlength="120" required></label><label>ISI TOPIC<textarea name="content" minlength="10" maxlength="5000" required></textarea></label><button class="btn btn-primary" type="submit">Publikasikan Topic</button></form></div></div>
     </section>
 
     <section class="intro section" id="features">

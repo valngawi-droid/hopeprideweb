@@ -11,6 +11,9 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 - Kendaraan (`vehicle`), rumah (`houses`), bisnis (`bisnis`), inventori (`inventory`), dan gaji (`salary`)
 - Direktori kota realtime untuk warung, toko umum, toko pakaian, dan usaha khusus
 - Admin dapat menambahkan bisnis, voucher, dan family langsung dari panel atau Discord
+- Forum komunitas berbasis UCP: kategori, topic, balasan, pencarian, pin, dan lock
+- Daftar staff/admin langsung dari `players.admin` dan `players.helper`
+- Backup database `.sql` streaming dari Admin Panel, dibatasi lima kali per jam
 - Animasi halus, mobile navigation, responsive cards, dan dukungan reduced-motion
 - Statistik publik dari database dengan graceful fallback saat database offline
 - Session aman, Helmet, rate limit autentikasi, parameterized query, dan validasi input
@@ -48,10 +51,25 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 | Warung / toko / pakaian | `bisnis.owner = players.username`, `bisnis.type` |
 | Voucher admin | `vouchers` |
 | Family admin | `familys` |
+| Forum kategori | `web_forum_categories` |
+| Forum topic | `web_forum_topics` |
+| Forum balasan | `web_forum_posts` |
+| Daftar staff | `players.admin`, `players.helper`, `ucp.discordid` |
 | Inventori | `inventory.ownerid = players.reg_id` |
 | Riwayat gaji | `salary.owner = players.reg_id` |
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
+
+## Migrasi forum dan backup
+
+Forum menggunakan tiga tabel berawalan `web_` agar tidak mengganggu gamemode. Pada instalasi baru migrasi diterapkan otomatis. Untuk instalasi Termux yang sudah berjalan:
+
+```bash
+cd ~/hopeprideweb
+npm run migrate:termux
+```
+
+Migrasi bersifat idempotent: aman dijalankan berulang dan tidak menghapus topic. Backup tersedia di **UCP → Admin Panel → Download .SQL**. File dibuat langsung oleh `mariadb-dump`, tidak disimpan di folder publik, hanya tersedia untuk admin, dan dibatasi lima unduhan per jam.
 
 ## Discord Bot
 

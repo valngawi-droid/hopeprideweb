@@ -4,17 +4,21 @@
 // yang benar-benar tersedia pada dump hope.sql.
 const fs = require('fs');
 const path = require('path');
-const sql = fs.readFileSync(path.join(__dirname, '..', 'hope.sql'), 'utf8').replace(/\r/g, '');
+const baseSql = fs.readFileSync(path.join(__dirname, '..', 'hope.sql'), 'utf8').replace(/\r/g, '');
+const webSql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '001_web_forum.sql'), 'utf8').replace(/\r/g, '');
 const schema = new Map();
-const tablePattern = /CREATE TABLE `([^`]+)` \(([^;]+?)\n\) ENGINE=/gms;
+const tablePattern = /CREATE TABLE(?: IF NOT EXISTS)? `([^`]+)` \(([^;]+?)\n\) ENGINE=/gms;
 let match;
-while ((match = tablePattern.exec(sql))) {
-  const columns = new Set();
-  for (const line of match[2].split('\n')) {
-    const column = line.match(/^\s*`([^`]+)`\s+/);
-    if (column) columns.add(column[1]);
+for (const sql of [baseSql, webSql]) {
+  tablePattern.lastIndex = 0;
+  while ((match = tablePattern.exec(sql))) {
+    const columns = new Set();
+    for (const line of match[2].split('\n')) {
+      const column = line.match(/^\s*`([^`]+)`\s+/);
+      if (column) columns.add(column[1]);
+    }
+    schema.set(match[1], columns);
   }
-  schema.set(match[1], columns);
 }
 
 const contract = {
@@ -35,7 +39,10 @@ const contract = {
   toys: ['Id','Owner'],
   vehicle_keys: ['id','owner','vehicle'],
   claimvoucher: ['playerid','code'],
-  requestcs: ['name','user']
+  requestcs: ['name','user'],
+  web_forum_categories: ['id','slug','name','description','icon','sort_order','admin_only','created_at'],
+  web_forum_topics: ['id','category_id','author_ucp','title','content','pinned','locked','views','created_at','updated_at'],
+  web_forum_posts: ['id','topic_id','author_ucp','content','created_at','updated_at']
 };
 
 const errors = [];
@@ -50,9 +57,11 @@ for (const [table, requiredColumns] of Object.entries(contract)) {
   }
 }
 
-if (schema.size !== 46) errors.push(`Dump terbaca ${schema.size} tabel; seharusnya 46 tabel`);
+const baseTableCount = (baseSql.match(/CREATE TABLE `/g) || []).length;
+if (baseTableCount !== 46) errors.push(`hope.sql terbaca ${baseTableCount} tabel; seharusnya 46 tabel`);
+if (schema.size !== 49) errors.push(`Total schema terbaca ${schema.size} tabel; seharusnya 49 termasuk forum`);
 if (errors.length) {
   console.error('Schema contract GAGAL:\n- ' + errors.join('\n- '));
   process.exit(1);
 }
-console.log(`Schema contract OK — ${schema.size} tabel, ${Object.keys(contract).length} tabel aplikasi tervalidasi.`);
+console.log(`Schema contract OK — 46 tabel game + 3 tabel forum, ${Object.keys(contract).length} tabel aplikasi tervalidasi.`);

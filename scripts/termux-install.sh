@@ -66,6 +66,9 @@ else
   echo "[4/5] Database lama ditemukan; import dilewati agar data tidak tertimpa."
 fi
 
+echo "[4.5/5] Menerapkan migrasi forum website..."
+mariadb -u root "$DB_NAME" < "$APP_DIR/migrations/001_web_forum.sql"
+
 cat > "$ENV_FILE" <<ENV
 PORT=3000
 NODE_ENV=development

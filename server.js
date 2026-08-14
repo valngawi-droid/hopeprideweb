@@ -3,6 +3,7 @@
 require('dotenv').config();
 const path = require('path');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const express = require('express');
 const helmet = require('helmet');
 const session = require('express-session');
@@ -41,7 +42,7 @@ function database() {
       waitForConnections: true,
       connectionLimit: Number(process.env.DB_POOL_SIZE || 8),
       queueLimit: 0,
-      charset: 'latin1'
+      charset: 'utf8mb4'
     });
   }
   return pool;
@@ -72,6 +73,16 @@ async function requireAdmin(req, res, next) {
     req.adminLevel = level;
     next();
   } catch (error) { next(error); }
+}
+async function requireForum(req, res, next) {
+  if (!database()) return res.status(503).json({ error:'Database sedang offline.' });
+  try {
+    await database().query('SELECT 1 FROM web_forum_categories LIMIT 1');
+    next();
+  } catch (error) {
+    if (error.code === 'ER_NO_SUCH_TABLE') return res.status(503).json({ error:'Forum belum dimigrasikan. Jalankan scripts/termux-migrate.sh.' });
+    next(error);
+  }
 }
 
 app.get('/api/health', asyncRoute(async (req, res) => {
@@ -200,6 +211,65 @@ app.patch('/api/me/discord', requireAuth, asyncRoute(async (req, res) => {
   res.json({ ok:true, verifyCode, message:'Discord ID diperbarui. Verifikasi ulang melalui bot Discord.' });
 }));
 
+app.get('/api/forum/categories', requireForum, asyncRoute(async (req, res) => {
+  const [rows] = await database().query(`SELECT c.id,c.slug,c.name,c.description,c.icon,c.admin_only,
+    COUNT(DISTINCT t.id) topics, COUNT(p.id) posts, MAX(t.updated_at) latest_at
+    FROM web_forum_categories c LEFT JOIN web_forum_topics t ON t.category_id=c.id
+    LEFT JOIN web_forum_posts p ON p.topic_id=t.id GROUP BY c.id ORDER BY c.sort_order,c.id`);
+  res.json({ categories:rows });
+}));
+
+app.get('/api/forum/topics', requireForum, asyncRoute(async (req, res) => {
+  const category = Math.max(0, Number(req.query.category) || 0);
+  const q = cleanText(req.query.q, 80);
+  const page = Math.max(1, Math.min(1000, Number(req.query.page) || 1));
+  const params=[], clauses=[];
+  if(category){clauses.push('t.category_id=?');params.push(category);}
+  if(q){clauses.push('(t.title LIKE ? OR t.author_ucp LIKE ?)');params.push(`%${q}%`,`%${q}%`);}
+  const where=clauses.length?`WHERE ${clauses.join(' AND ')}`:'';
+  const [rows]=await database().execute(`SELECT t.id,t.category_id,t.author_ucp,t.title,t.pinned,t.locked,t.views,t.created_at,t.updated_at,
+    c.name category_name, COUNT(p.id) replies FROM web_forum_topics t JOIN web_forum_categories c ON c.id=t.category_id
+    LEFT JOIN web_forum_posts p ON p.topic_id=t.id ${where} GROUP BY t.id ORDER BY t.pinned DESC,t.updated_at DESC LIMIT 25 OFFSET ${(page-1)*25}`,params);
+  res.json({topics:rows,page});
+}));
+
+app.get('/api/forum/topics/:id', requireForum, asyncRoute(async (req,res)=>{
+  const id=Number(req.params.id); if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Topic ID tidak valid.'});
+  await database().execute('UPDATE web_forum_topics SET views=views+1 WHERE id=?',[id]);
+  const [topics]=await database().execute(`SELECT t.*,c.name category_name FROM web_forum_topics t JOIN web_forum_categories c ON c.id=t.category_id WHERE t.id=? LIMIT 1`,[id]);
+  if(!topics[0])return res.status(404).json({error:'Topic tidak ditemukan.'});
+  const [posts]=await database().execute('SELECT id,author_ucp,content,created_at,updated_at FROM web_forum_posts WHERE topic_id=? ORDER BY created_at,id LIMIT 200',[id]);
+  res.json({topic:topics[0],posts});
+}));
+
+app.post('/api/forum/topics', requireAuth, requireForum, asyncRoute(async(req,res)=>{
+  const categoryId=Number(req.body.categoryId),title=cleanText(req.body.title,120),content=cleanText(req.body.content,5000);
+  if(!Number.isInteger(categoryId)||title.length<5||content.length<10)return res.status(400).json({error:'Kategori, judul minimal 5 karakter, dan isi minimal 10 karakter wajib diisi.'});
+  const [categories]=await database().execute('SELECT admin_only FROM web_forum_categories WHERE id=? LIMIT 1',[categoryId]);
+  if(!categories[0])return res.status(404).json({error:'Kategori tidak ditemukan.'});
+  if(categories[0].admin_only && await effectiveAdminLevel(req.session.user.id)<1)return res.status(403).json({error:'Kategori khusus administrator.'});
+  const [result]=await database().execute('INSERT INTO web_forum_topics (category_id,author_ucp,title,content) VALUES (?,?,?,?)',[categoryId,req.session.user.username,title,content]);
+  res.status(201).json({ok:true,id:result.insertId});
+}));
+
+app.post('/api/forum/topics/:id/posts', requireAuth, requireForum, asyncRoute(async(req,res)=>{
+  const id=Number(req.params.id),content=cleanText(req.body.content,5000);
+  if(!Number.isInteger(id)||content.length<2)return res.status(400).json({error:'Balasan tidak valid.'});
+  const [topics]=await database().execute('SELECT locked FROM web_forum_topics WHERE id=? LIMIT 1',[id]);
+  if(!topics[0])return res.status(404).json({error:'Topic tidak ditemukan.'});
+  if(topics[0].locked && await effectiveAdminLevel(req.session.user.id)<1)return res.status(403).json({error:'Topic telah dikunci.'});
+  await database().execute('INSERT INTO web_forum_posts (topic_id,author_ucp,content) VALUES (?,?,?)',[id,req.session.user.username,content]);
+  await database().execute('UPDATE web_forum_topics SET updated_at=CURRENT_TIMESTAMP WHERE id=?',[id]);
+  res.status(201).json({ok:true});
+}));
+
+app.patch('/api/forum/topics/:id/moderation', requireAdmin, requireForum, asyncRoute(async(req,res)=>{
+  const id=Number(req.params.id), pinned=req.body.pinned?1:0, locked=req.body.locked?1:0;
+  const [result]=await database().execute('UPDATE web_forum_topics SET pinned=?,locked=? WHERE id=?',[pinned,locked,id]);
+  if(!result.affectedRows)return res.status(404).json({error:'Topic tidak ditemukan.'});
+  res.json({ok:true,pinned:Boolean(pinned),locked:Boolean(locked)});
+}));
+
 app.get('/api/admin/overview', requireAdmin, asyncRoute(async (req, res) => {
   const q = cleanText(req.query.q, 25);
   const page = Math.max(1, Math.min(10000, Number(req.query.page) || 1));
@@ -258,6 +328,27 @@ app.post('/api/admin/ucp/:id/reset-verification', requireAdmin, asyncRoute(async
   if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
   res.json({ ok:true, verifyCode });
 }));
+
+app.get('/api/admin/staff', requireAdmin, asyncRoute(async(req,res)=>{
+  const [rows]=await database().query(`SELECT p.reg_id,p.username,p.ucp,p.admin,p.helper,p.level,p.hours,p.faction,p.factionrank,p.last_login,
+    u.discordid,u.verifystatus FROM players p LEFT JOIN ucp u ON u.username=p.ucp WHERE p.admin>0 OR p.helper>0 ORDER BY p.admin DESC,p.helper DESC,p.username`);
+  res.json({staff:rows,total:rows.length});
+}));
+
+const backupLimiter=rateLimit({windowMs:60*60*1000,limit:5,standardHeaders:'draft-8',legacyHeaders:false});
+app.get('/api/admin/backup', backupLimiter, requireAdmin, (req,res,next)=>{
+  if(!database()||!process.env.DB_HOST)return res.status(503).json({error:'Database belum dikonfigurasi.'});
+  const dbName=process.env.DB_NAME||'hope';
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+  const args=['--single-transaction','--quick','--skip-lock-tables','--default-character-set=utf8mb4',`--host=${process.env.DB_HOST}`,`--port=${Number(process.env.DB_PORT||3306)}`,`--user=${process.env.DB_USER}`,dbName];
+  const dump=spawn('mariadb-dump',args,{env:{...process.env,MYSQL_PWD:process.env.DB_PASSWORD||''},stdio:['ignore','pipe','pipe']});
+  let started=false,stderr='';
+  dump.on('spawn',()=>{started=true;res.set({'Content-Type':'application/sql; charset=utf-8','Content-Disposition':`attachment; filename="hope-backup-${stamp}.sql"`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});dump.stdout.pipe(res);});
+  dump.stderr.on('data',chunk=>{stderr+=chunk.toString().slice(0,2000)});
+  dump.on('error',error=>{if(!res.headersSent)res.status(500).json({error:'mariadb-dump tidak tersedia. Pastikan paket mariadb terpasang.'});else res.destroy(error);});
+  dump.on('close',code=>{if(code!==0){console.error('[BACKUP]',stderr);if(!res.headersSent)res.status(500).json({error:'Backup database gagal.'});}else if(started&&!res.writableEnded)res.end();});
+  res.on('close',()=>{if(!res.writableEnded&&!dump.killed)dump.kill('SIGTERM')});
+});
 
 app.post('/api/admin/businesses', requireAdmin, asyncRoute(async (req, res) => {
   const name = cleanText(req.body.name, 40);

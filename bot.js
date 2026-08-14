@@ -25,7 +25,7 @@ const db = mysql.createPool({
   database: process.env.DB_NAME || 'hope',
   waitForConnections: true,
   connectionLimit: 4,
-  charset: 'latin1'
+  charset: 'utf8mb4'
 });
 
 const commands = [
