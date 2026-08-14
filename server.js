@@ -37,7 +37,7 @@ const sessionStore = process.env.DB_HOST ? new MySQLSessionStore({
   connectionLimit: 4,
   clearExpired: true,
   checkExpirationInterval: 15 * 60 * 1000,
-  expiration: 7 * 24 * 60 * 60 * 1000,
+  expiration: 30 * 24 * 60 * 60 * 1000,
   createDatabaseTable: false,
   schema: { tableName:'web_sessions', columnNames:{ session_id:'session_id', expires:'expires', data:'data' } }
 }) : undefined;
@@ -50,7 +50,7 @@ app.use(session({
   saveUninitialized: false,
   rolling: true,
   proxy: true,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: cookieSecure, path:'/', maxAge: 1000 * 60 * 60 * 24 * 7 }
+  cookie: { httpOnly: true, sameSite: 'lax', secure: cookieSecure, path:'/', maxAge: 1000 * 60 * 60 * 24 * 30 }
 }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
