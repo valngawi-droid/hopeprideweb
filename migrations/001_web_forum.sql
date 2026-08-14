@@ -1,6 +1,13 @@
 -- Hope Pride web-only tables. Aman untuk gamemode karena prefix `web_`.
 -- Idempotent: dapat dijalankan berulang tanpa menghapus data.
 
+CREATE TABLE IF NOT EXISTS `web_sessions` (
+  `session_id` varchar(128) NOT NULL,
+  `expires` int(11) unsigned NOT NULL,
+  `data` mediumtext NOT NULL,
+  PRIMARY KEY (`session_id`), KEY `idx_web_sessions_expires` (`expires`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `web_forum_categories` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `slug` varchar(40) NOT NULL,

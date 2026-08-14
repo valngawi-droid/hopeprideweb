@@ -60,9 +60,46 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. PIN aktivasi in-game menggunakan format `HP-######` dan disimpan pada kolom asli `ucp.verifycode`. PIN ditampilkan setelah registrasi serta pada Ringkasan dan Pengaturan UCP. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
+## Administrator Command Center
+
+Admin UI kini memakai enam tab responsif agar tidak menumpuk dalam satu halaman: **Overview, UCP & Player, Economy, City Assets, Security Log,** dan **Create Tools**. Fitur administrasi yang tersedia:
+
+1. Session login persisten tujuh hari
+2. Auto-restore halaman UCP setelah refresh
+3. Dashboard KPI realtime
+4. Database size dan jumlah tabel
+5. Daftar staff dan administrator
+6. Status verifikasi staff
+7. Pencarian UCP dan Discord ID
+8. Verifikasi/unverify UCP
+9. Reset PIN in-game
+10. Ganti Discord ID pemain
+11. Backup SQL streaming
+12. Export UCP ke CSV
+13. Monitor staff command terbaru
+14. Audit log lengkap
+15. Daftar blacklist
+16. Monitor warn dan jail
+17. Daftar pemain VIP
+18. Statistik distribusi job
+19. Statistik distribusi faction
+20. Server treasury monitor
+21. Stok material, component, gas, product, dan food
+22. Daftar harga ekonomi server
+23. Top item inventory
+24. Direktori bisnis admin
+25. Direktori family admin
+26. Direktori workshop admin
+27. Monitor voucher
+28. Membuat bisnis
+29. Membuat voucher
+30. Membuat family
+
+Pada HP, menu admin berubah menjadi tab horizontal, tabel dapat digeser, kartu menjadi satu kolom, dan action button membungkus otomatis. Pada PC, data memakai grid dan panel multi-kolom.
+
 ## Migrasi forum dan backup
 
-Forum menggunakan tiga tabel berawalan `web_` agar tidak mengganggu gamemode. Pada instalasi baru migrasi diterapkan otomatis. Untuk instalasi Termux yang sudah berjalan:
+Website menggunakan empat tabel berawalan `web_` (`web_sessions` dan tiga tabel forum) agar tidak mengganggu gamemode. Pada instalasi baru migrasi diterapkan otomatis. Untuk instalasi Termux yang sudah berjalan:
 
 ```bash
 cd ~/hopeprideweb

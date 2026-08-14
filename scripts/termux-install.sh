@@ -45,9 +45,13 @@ if ! mariadb-admin ping --silent >/dev/null 2>&1; then
   exit 1
 fi
 
-# Gunakan crypto bawaan Node.js supaya tidak bergantung pada binary openssl-tool.
-DB_PASSWORD="$(node -e "process.stdout.write(require('crypto').randomBytes(16).toString('hex'))")"
-SESSION_SECRET="$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")"
+# Pertahankan password dan session secret lama agar update tidak membuat user logout.
+if [[ -f "$ENV_FILE" ]]; then
+  DB_PASSWORD="$(node -e "require('dotenv').config({quiet:true});process.stdout.write(process.env.DB_PASSWORD||'')")"
+  SESSION_SECRET="$(node -e "require('dotenv').config({quiet:true});process.stdout.write(process.env.SESSION_SECRET||'')")"
+fi
+DB_PASSWORD="${DB_PASSWORD:-$(node -e "process.stdout.write(require('crypto').randomBytes(16).toString('hex'))")}"
+SESSION_SECRET="${SESSION_SECRET:-$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")}"
 
 echo "[3/5] Membuat database dan user website..."
 mariadb -u root <<SQL
@@ -66,9 +70,11 @@ else
   echo "[4/5] Database lama ditemukan; import dilewati agar data tidak tertimpa."
 fi
 
-echo "[4.5/5] Menerapkan migrasi forum website..."
+echo "[4.5/5] Menerapkan migrasi forum dan session website..."
 mariadb -u root "$DB_NAME" < "$APP_DIR/migrations/001_web_forum.sql"
+mariadb -u root -e "GRANT DELETE ON \`${DB_NAME}\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
 
+if [[ ! -f "$ENV_FILE" ]]; then
 cat > "$ENV_FILE" <<ENV
 PORT=3000
 NODE_ENV=development
@@ -90,6 +96,9 @@ DISCORD_GUILD_ID=
 DISCORD_ADMIN_ROLE_ID=
 DISCORD_INVITE_URL=https://discord.gg/ganti-dengan-invite
 ENV
+else
+  echo "Konfigurasi .env lama dipertahankan (token dan sesi tidak direset)."
+fi
 chmod 600 "$ENV_FILE"
 
 echo "[5/5] Memeriksa aplikasi..."

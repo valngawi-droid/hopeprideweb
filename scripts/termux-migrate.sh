@@ -10,4 +10,6 @@ if ! mariadb-admin ping --silent >/dev/null 2>&1; then
 fi
 if ! mariadb-admin ping --silent >/dev/null 2>&1; then echo "MariaDB gagal aktif. Periksa mariadb.log."; exit 1; fi
 mariadb -u root hope < migrations/001_web_forum.sql
-echo "Migrasi forum berhasil. Tabel web_forum_* siap digunakan."
+DB_USER="$(node -e "require('dotenv').config({quiet:true});process.stdout.write(process.env.DB_USER||'hope_web')")"
+mariadb -u root -e "GRANT DELETE ON \`hope\`.\`web_sessions\` TO '${DB_USER}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+echo "Migrasi forum dan session berhasil. Login kini persisten setelah refresh/restart."

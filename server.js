@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const helmet = require('helmet');
 const session = require('express-session');
+const MySQLSessionStore = require('express-mysql-session')(session);
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
@@ -19,12 +20,25 @@ app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false }));
+const sessionStore = process.env.DB_HOST ? new MySQLSessionStore({
+  clearExpired: true,
+  checkExpirationInterval: 15 * 60 * 1000,
+  expiration: 7 * 24 * 60 * 60 * 1000,
+  createDatabaseTable: false,
+  schema: { tableName:'web_sessions', columnNames:{ session_id:'session_id', expires:'expires', data:'data' } }
+}, {
+  host:process.env.DB_HOST, port:Number(process.env.DB_PORT||3306), user:process.env.DB_USER,
+  password:process.env.DB_PASSWORD, database:process.env.DB_NAME||'hope', charset:'utf8mb4'
+}) : undefined;
 app.use(session({
   name: 'hope.sid',
   secret: process.env.SESSION_SECRET || 'development-only-change-this-secret',
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: isProduction, maxAge: 1000 * 60 * 60 * 12 }
+  rolling: true,
+  proxy: true,
+  cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 1000 * 60 * 60 * 24 * 7 }
 }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
@@ -327,6 +341,31 @@ app.post('/api/admin/ucp/:id/reset-verification', requireAdmin, asyncRoute(async
   const [result] = await database().execute('UPDATE ucp SET verifystatus = 0, verifycode = ? WHERE id = ?', [verifyCode, id]);
   if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
   res.json({ ok:true, verifyCode });
+}));
+
+app.get('/api/admin/insights', requireAdmin, asyncRoute(async(req,res)=>{
+  const [logs,blacklist,vouchers,families,workshops,jobs,factions,vips,sanctions,items,economy,businesses] = await Promise.all([
+    database().query('SELECT command,admin,player,str,time FROM logstaff ORDER BY time DESC LIMIT 15'),
+    database().query('SELECT username,player,bannedby,reason,banned_date,banned_expired FROM blacklist ORDER BY banned_expired DESC LIMIT 15'),
+    database().query('SELECT id,code,vip,vip_time,gold,admin,expired FROM vouchers ORDER BY id DESC LIMIT 15'),
+    database().query('SELECT ID id,name,leader,money,component,material FROM familys ORDER BY ID DESC LIMIT 15'),
+    database().query('SELECT id,name,owner,ownerid,status,price,money,component,material FROM workshop ORDER BY id DESC LIMIT 15'),
+    database().query('SELECT job,COUNT(*) total FROM players GROUP BY job ORDER BY total DESC LIMIT 10'),
+    database().query('SELECT faction,COUNT(*) total FROM players GROUP BY faction ORDER BY total DESC LIMIT 10'),
+    database().query('SELECT reg_id,username,ucp,vip,vip_time,last_login FROM players WHERE vip>0 ORDER BY vip DESC,vip_time DESC LIMIT 15'),
+    database().query('SELECT reg_id,username,warn,jail,jail_time,last_login FROM players WHERE warn>0 OR jail>0 ORDER BY warn DESC,jail DESC LIMIT 15'),
+    database().query('SELECT item,SUM(quantity) quantity,COUNT(DISTINCT ownerid) owners FROM inventory GROUP BY item ORDER BY quantity DESC LIMIT 15'),
+    database().query('SELECT servermoney,material,materialprice,component,componentprice,gasoil,gasoilprice,product,productprice,food,foodprice,hopecoin,hopecoinprice FROM server LIMIT 1'),
+    database().query('SELECT ID id,name,owner,type,price,locked,money,prod FROM bisnis ORDER BY ID DESC LIMIT 20')
+  ]);
+  const [[dbSize]]=await database().execute('SELECT ROUND(COALESCE(SUM(data_length+index_length),0)/1024/1024,2) size_mb,COUNT(*) tables FROM information_schema.tables WHERE table_schema=?',[process.env.DB_NAME||'hope']);
+  res.json({logs:logs[0],blacklist:blacklist[0],vouchers:vouchers[0],families:families[0],workshops:workshops[0],jobs:jobs[0],factions:factions[0],vips:vips[0],sanctions:sanctions[0],items:items[0],economy:economy[0][0]||{},businesses:businesses[0],database:dbSize});
+}));
+
+app.get('/api/admin/export/ucp.csv', requireAdmin, asyncRoute(async(req,res)=>{
+  const [rows]=await database().query(`SELECT u.id,u.username,u.discordid,u.verifystatus,u.admin,u.registerdate,COUNT(p.reg_id) characters,COALESCE(MAX(p.admin),0) game_admin FROM ucp u LEFT JOIN players p ON p.ucp=u.username GROUP BY u.id ORDER BY u.id`);
+  const csv=['id,username,discordid,verified,ucp_admin,registered,characters,game_admin',...rows.map(r=>[r.id,r.username,r.discordid,r.verifystatus,r.admin,r.registerdate,r.characters,r.game_admin].map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(','))].join('\n');
+  res.set({'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="hope-ucp-${new Date().toISOString().slice(0,10)}.csv"`,'Cache-Control':'no-store'}).send('\uFEFF'+csv);
 }));
 
 app.get('/api/admin/staff', requireAdmin, asyncRoute(async(req,res)=>{

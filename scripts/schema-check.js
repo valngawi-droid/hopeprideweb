@@ -32,7 +32,8 @@ const contract = {
   familys: ['ID','name','leader','motd','color'],
   vouchers: ['id','code','vip','vip_time','gold','admin','expired'],
   logstaff: ['command','admin','adminid','player','playerid','str','time'],
-  workshop: ['id','owner','ownerid','name','status','price'],
+  workshop: ['id','owner','ownerid','name','status','price','money','component','material'],
+  server: ['id','servermoney','material','materialprice','component','componentprice','gasoil','gasoilprice','product','productprice','food','foodprice','hopecoin','hopecoinprice'],
   blacklist: ['username','player','bannedby','reason','banned_date','banned_expired'],
   player_skill: ['id','owner','name','level','exp'],
   player_fish: ['id','owner','name','weight'],
@@ -40,6 +41,7 @@ const contract = {
   vehicle_keys: ['id','owner','vehicle'],
   claimvoucher: ['playerid','code'],
   requestcs: ['name','user'],
+  web_sessions: ['session_id','expires','data'],
   web_forum_categories: ['id','slug','name','description','icon','sort_order','admin_only','created_at'],
   web_forum_topics: ['id','category_id','author_ucp','title','content','pinned','locked','views','created_at','updated_at'],
   web_forum_posts: ['id','topic_id','author_ucp','content','created_at','updated_at']
@@ -59,9 +61,9 @@ for (const [table, requiredColumns] of Object.entries(contract)) {
 
 const baseTableCount = (baseSql.match(/CREATE TABLE `/g) || []).length;
 if (baseTableCount !== 46) errors.push(`hope.sql terbaca ${baseTableCount} tabel; seharusnya 46 tabel`);
-if (schema.size !== 49) errors.push(`Total schema terbaca ${schema.size} tabel; seharusnya 49 termasuk forum`);
+if (schema.size !== 50) errors.push(`Total schema terbaca ${schema.size} tabel; seharusnya 50 termasuk session dan forum`);
 if (errors.length) {
   console.error('Schema contract GAGAL:\n- ' + errors.join('\n- '));
   process.exit(1);
 }
-console.log(`Schema contract OK — 46 tabel game + 3 tabel forum, ${Object.keys(contract).length} tabel aplikasi tervalidasi.`);
+console.log(`Schema contract OK — 46 tabel game + 4 tabel web, ${Object.keys(contract).length} tabel aplikasi tervalidasi.`);
