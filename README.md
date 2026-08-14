@@ -6,7 +6,7 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 
 - Landing page responsif dengan status server, fitur, panduan, dan komunitas
 - Login UCP menggunakan tabel `ucp` dan verifikasi hash bcrypt `$2b$`
-- Registrasi UCP langsung ke kolom yang sudah tersedia (`username`, `password`, `ip`, `verifycode`, `discordid`, dan lainnya)
+- Registrasi UCP langsung ke kolom yang tersedia dan menampilkan PIN aktivasi in-game dari `ucp.verifycode`
 - Dashboard karakter IC dari tabel `players`
 - Kendaraan (`vehicle`), rumah (`houses`), bisnis (`bisnis`), inventori (`inventory`), dan gaji (`salary`)
 - Direktori kota realtime untuk warung, toko umum, toko pakaian, dan usaha khusus
@@ -58,7 +58,7 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 | Inventori | `inventory.ownerid = players.reg_id` |
 | Riwayat gaji | `salary.owner = players.reg_id` |
 
-Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
+Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. PIN aktivasi in-game menggunakan format `HP-######` dan disimpan pada kolom asli `ucp.verifycode`. PIN ditampilkan setelah registrasi serta pada Ringkasan dan Pengaturan UCP. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
 ## Migrasi forum dan backup
 

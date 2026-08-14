@@ -148,7 +148,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const verifyCode = `HP-${crypto.randomInt(100000, 999999)}`;
   const registered = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await database().execute('INSERT INTO ucp (username, password, ip, admin, verifystatus, verifycode, discordid, registerdate) VALUES (?, ?, ?, 0, 0, ?, ?, ?)', [username, hash, clientIp(req), verifyCode, discordId, registered]);
-  res.status(201).json({ ok: true, verifyCode, message: 'UCP dibuat. Kirim kode verifikasi ke bot Discord Hope Pride.' });
+  res.status(201).json({ ok: true, verifyCode, gamePin: verifyCode, message: 'UCP berhasil dibuat. Gunakan PIN ini untuk aktivasi di dalam game dan verifikasi Discord.' });
 }));
 
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
@@ -156,7 +156,7 @@ app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ 
 app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const db = database();
   const [[ucpRows], [characters]] = await Promise.all([
-    db.execute('SELECT username, admin, verifystatus, discordid, registerdate FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]),
+    db.execute('SELECT username, admin, verifystatus, verifycode, discordid, registerdate FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]),
     db.execute(`SELECT reg_id, username, level, admin, helper, hours, minutes, money, bmoney, phone, job, faction, factionrank, vip, skin, health, armour, hunger, energy, last_login FROM players WHERE ucp = ? ORDER BY reg_id`, [req.session.user.username])
   ]);
   const names = characters.map(c => c.username);
@@ -177,7 +177,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   }
   const adminLevel = Math.max(Number(ucpRows[0].admin || 0), ...characters.map(c => Number(c.admin || 0)), 0);
   res.json({
-    ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: adminLevel, isAdmin: adminLevel > 0, discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
+    ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: adminLevel, isAdmin: adminLevel > 0, gamePin: ucpRows[0].verifycode, discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
     characters: characters.map(c => ({ id:c.reg_id, name:c.username, level:c.level, hours:c.hours, minutes:c.minutes, money:c.money, bank:c.bmoney, phone:c.phone, job:jobNames[c.job] || `Job ${c.job}`, faction:factionNames[c.faction] || `Faction ${c.faction}`, factionRank:c.factionrank, vip:c.vip, skin:c.skin, health:c.health, armour:c.armour, hunger:c.hunger, energy:c.energy, lastLogin:c.last_login, vehicles:vehicles.filter(v=>Number(v.owner)===Number(c.reg_id)).length, houses:properties.filter(h=>h.owner===c.username).length })),
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
     properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })),
