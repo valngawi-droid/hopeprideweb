@@ -9,9 +9,10 @@ const mysql=require('mysql2/promise');
     let db;
     try{
       db=await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME||'hope',charset:'utf8mb4'});
-      const [rows]=await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema=? AND table_name IN ('ucp','players','web_sessions','web_forum_categories')",[process.env.DB_NAME||'hope']);
+      const required=['ucp','players','vehicle','inventory','familys','requestcs','logstaff','logpay','web_sessions','web_forum_categories','web_forum_topics','web_forum_posts'];
+      const [rows]=await db.query(`SELECT table_name FROM information_schema.tables WHERE table_schema=? AND table_name IN (${required.map(()=>'?').join(',')})`,[process.env.DB_NAME||'hope',...required]);
       const found=new Set(rows.map(r=>r.TABLE_NAME||r.table_name));
-      for(const table of ['ucp','players','web_sessions','web_forum_categories']){
+      for(const table of required){
         if(found.has(table))console.log(`✓ Database table ${table}`);else{console.error(`✗ Tabel ${table} belum ada`);failed=true;}
       }
       console.log('✓ Koneksi MariaDB berhasil');

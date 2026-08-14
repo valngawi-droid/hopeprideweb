@@ -100,6 +100,15 @@ async function requireAdmin(req, res, next) {
     next();
   } catch (error) { next(error); }
 }
+function requireAdminLevel(minimum) {
+  return async (req,res,next)=>{
+    if(!req.session.user)return res.status(401).json({error:'Silakan masuk terlebih dahulu.'});
+    try{const level=await effectiveAdminLevel(req.session.user.id);if(level<minimum)return res.status(403).json({error:`Fitur ini membutuhkan Admin Level ${minimum} atau lebih tinggi.`});req.adminLevel=level;next();}catch(error){next(error)}
+  };
+}
+async function auditAdmin(req,command,player,playerid,detail){
+  await database().execute('INSERT INTO logstaff (command,admin,adminid,player,playerid,str,time) VALUES (?,?, -1,?,?,?,?)',[command,req.session.user.username,player,playerid,String(detail).slice(0,50),Math.floor(Date.now()/1000)]).catch(()=>{});
+}
 async function requireForum(req, res, next) {
   if (!database()) return res.status(503).json({ error:'Database sedang offline.' });
   try {
@@ -497,9 +506,45 @@ app.post('/api/admin/families', requireAdmin, asyncRoute(async (req, res) => {
   if(name.length<3 || leader.length<3) return res.status(400).json({error:'Nama family dan leader wajib diisi.'});
   const [player]=await database().execute('SELECT reg_id FROM players WHERE username=? LIMIT 1',[leader]);
   if(!player.length) return res.status(404).json({error:'Character leader tidak ditemukan.'});
-  await database().execute(`INSERT INTO familys (ID,name,leader,motd,color) SELECT COALESCE(MAX(ID),-1)+1,?,?,?,? FROM familys`,[name,leader,motd,color]);
-  const [[family]]=await database().query('SELECT ID id,name,leader FROM familys ORDER BY ID DESC LIMIT 1');
-  res.status(201).json({ok:true,family});
+  const [[next]]=await database().query('SELECT COALESCE(MAX(ID),-1)+1 next_id FROM familys');
+  await database().execute('INSERT INTO familys (ID,name,leader,motd,color) VALUES (?,?,?,?,?)',[next.next_id,name,leader,motd,color]);
+  await auditAdmin(req,'WEBADDFAMILY',leader,player[0].reg_id,`${next.next_id}:${name}`);
+  res.status(201).json({ok:true,family:{id:next.next_id,name,leader}});
+}));
+
+app.get('/api/admin/grant/options', requireAdminLevel(5), asyncRoute(async(req,res)=>{
+  const [characters]=await database().query('SELECT reg_id,username,ucp,level FROM players ORDER BY last_login DESC LIMIT 250');
+  const [items]=await database().query("SELECT item,COUNT(*) uses FROM inventory WHERE item!='None' GROUP BY item ORDER BY uses DESC,item LIMIT 100");
+  res.json({characters,items:items.map(x=>x.item),vehicles:Object.entries(vehicleNames).map(([model,name])=>({model:Number(model),name}))});
+}));
+
+app.post('/api/admin/grant/money', requireAdminLevel(5), asyncRoute(async(req,res)=>{
+  const character=cleanText(req.body.character,24),account=String(req.body.account||'money'),amount=Number(req.body.amount);
+  const columns={money:'money',bank:'bmoney',gold:'gold',hopecoin:'hopecoin'};
+  if(!columns[account]||!Number.isInteger(amount)||amount<1||amount>1000000000)return res.status(400).json({error:'Target, jenis saldo, atau jumlah tidak valid.'});
+  const [players]=await database().execute('SELECT reg_id,username FROM players WHERE username=? LIMIT 1',[character]);if(!players[0])return res.status(404).json({error:'Character tidak ditemukan.'});
+  await database().execute(`UPDATE players SET \`${columns[account]}\`=\`${columns[account]}\`+? WHERE reg_id=?`,[amount,players[0].reg_id]);
+  await auditAdmin(req,'WEBGIVEMONEY',character,players[0].reg_id,`${account}:${amount}`);
+  res.json({ok:true,message:`${account} ${amount.toLocaleString('id-ID')} diberikan ke ${character}.`});
+}));
+
+app.post('/api/admin/grant/item', requireAdminLevel(5), asyncRoute(async(req,res)=>{
+  const character=cleanText(req.body.character,24),item=cleanText(req.body.item,32),quantity=Number(req.body.quantity);
+  if(item.length<2||!Number.isInteger(quantity)||quantity<1||quantity>100000)return res.status(400).json({error:'Item atau quantity tidak valid.'});
+  const [players]=await database().execute('SELECT reg_id,username FROM players WHERE username=? LIMIT 1',[character]);if(!players[0])return res.status(404).json({error:'Character tidak ditemukan.'});
+  const [existing]=await database().execute('SELECT id FROM inventory WHERE ownerid=? AND item=? ORDER BY id LIMIT 1',[players[0].reg_id,item]);
+  if(existing[0])await database().execute('UPDATE inventory SET quantity=quantity+? WHERE id=?',[quantity,existing[0].id]);else await database().execute('INSERT INTO inventory (ownerid,item,quantity) VALUES (?,?,?)',[players[0].reg_id,item,quantity]);
+  await auditAdmin(req,'WEBGIVEITEM',character,players[0].reg_id,`${item}:${quantity}`);
+  res.json({ok:true,message:`${quantity} ${item} diberikan ke ${character}.`});
+}));
+
+app.post('/api/admin/grant/vehicle', requireAdminLevel(5), asyncRoute(async(req,res)=>{
+  const character=cleanText(req.body.character,24),model=Number(req.body.model),color1=Number(req.body.color1||0),color2=Number(req.body.color2||0),price=Number(req.body.price||0);
+  if(!Number.isInteger(model)||model<400||model>611||![color1,color2].every(x=>Number.isInteger(x)&&x>=0&&x<=255)||!Number.isInteger(price)||price<0||price>2000000000)return res.status(400).json({error:'Model, warna, atau harga kendaraan tidak valid.'});
+  const [players]=await database().execute('SELECT reg_id,username FROM players WHERE username=? LIMIT 1',[character]);if(!players[0])return res.status(404).json({error:'Character tidak ditemukan.'});
+  const [result]=await database().execute("INSERT INTO vehicle (owner,model,color1,color2,price,fuel,health,plate) VALUES (?,?,?,?,?,100,1000,'NoHave')",[players[0].reg_id,model,color1,color2,price]);
+  await auditAdmin(req,'WEBGIVEVEH',character,players[0].reg_id,`${result.insertId}:model${model}`);
+  res.status(201).json({ok:true,message:`Kendaraan model ${model} (#${result.insertId}) diberikan ke ${character}.`,vehicleId:result.insertId});
 }));
 
 app.get('/api/admin/player', requireAdmin, asyncRoute(async (req, res) => {

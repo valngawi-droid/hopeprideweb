@@ -93,6 +93,12 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. PIN aktivasi in-game menggunakan format `HP-######` dan disimpan pada kolom asli `ucp.verifycode`. PIN ditampilkan setelah registrasi serta pada Ringkasan dan Pengaturan UCP. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
+## Level 5 Grant Center
+
+Administrator level 5 ke atas memiliki panel khusus untuk memberikan Cash/Bank/Gold/Hope Coin, item inventory, atau kendaraan kepada Character IC. Semua target divalidasi terhadap tabel `players`; kendaraan memakai `vehicle.owner = players.reg_id`; item memakai `inventory.ownerid = players.reg_id`; dan seluruh tindakan dicatat ke `logstaff` sebagai `WEBGIVEMONEY`, `WEBGIVEITEM`, atau `WEBGIVEVEH`.
+
+Pembuatan family juga menggunakan ID eksplisit dari `MAX(familys.ID)+1`, memvalidasi leader pada `players`, dan mencatat aktivitas ke audit log.
+
 ## Request CS dan abuse monitoring
 
 - Pemain dapat mengajukan Character Story melalui UCP atau `/request-cs`.
