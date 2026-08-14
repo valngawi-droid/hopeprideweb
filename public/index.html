@@ -12,7 +12,7 @@
   <div class="noise"></div>
   <header class="nav" id="nav">
     <a class="brand" href="#home" aria-label="Hope Pride Roleplay"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>ROLEPLAY</small></span></a>
-    <nav class="nav-links"><a class="active" href="#home">Beranda</a><a href="#features">Fitur</a><a href="#guide">Panduan</a><a href="#community">Komunitas</a></nav>
+    <nav class="nav-links"><a class="active" href="#home">Beranda</a><a href="#features">Fitur</a><a href="#city">Direktori Kota</a><a href="#guide">Panduan</a><a href="#community">Komunitas</a></nav>
     <div class="nav-actions"><button class="icon-btn mobile-menu" aria-label="Menu">☰</button><button class="btn btn-ghost open-auth">Masuk</button><button class="btn btn-primary open-register">Buat UCP <span>↗</span></button></div>
   </header>
 
@@ -50,8 +50,14 @@
       </div>
     </section>
 
+    <section class="city-directory section" id="city">
+      <div class="city-heading reveal"><div><div class="section-kicker"><span>02</span> CITY DIRECTORY</div><h2>JELAJAHI<br><em>EKONOMI KOTA.</em></h2></div><p>Temukan warung makan, minimarket, toko pakaian, dan usaha milik warga. Seluruh daftar ditarik langsung dari database Hope City.</p></div>
+      <div class="directory-toolbar reveal"><div class="directory-tabs"><button class="active" data-business-type="0">Semua</button><button data-business-type="1">☕ Warung</button><button data-business-type="2">▦ Toko Umum</button><button data-business-type="3">♙ Toko Baju</button><button data-business-type="4">◇ Usaha Khusus</button></div><input id="business-search" placeholder="Cari nama atau pemilik..." aria-label="Cari bisnis"></div>
+      <div class="business-grid" id="business-grid"><div class="directory-loading">Menghubungkan ke database kota...</div></div>
+    </section>
+
     <section class="journey section" id="guide"><div class="journey-bg"></div>
-      <div class="section-kicker reveal"><span>02</span> START YOUR JOURNEY</div><h2 class="reveal">EMPAT LANGKAH.<br><em>SATU KEHIDUPAN BARU.</em></h2>
+      <div class="section-kicker reveal"><span>03</span> START YOUR JOURNEY</div><h2 class="reveal">EMPAT LANGKAH.<br><em>SATU KEHIDUPAN BARU.</em></h2>
       <div class="steps">
         <div class="step reveal"><b>01</b><div class="step-dot"></div><h3>BUAT UCP</h3><p>Daftarkan akun menggunakan Discord ID.</p></div>
         <div class="step reveal"><b>02</b><div class="step-dot"></div><h3>VERIFIKASI</h3><p>Masukkan kode melalui bot komunitas.</p></div>
@@ -60,13 +66,13 @@
       </div><button class="btn btn-primary btn-large open-register reveal">Daftar UCP Sekarang <span>↗</span></button>
     </section>
 
-    <section class="community section" id="community"><div class="community-copy reveal"><div class="section-kicker"><span>03</span> OUR COMMUNITY</div><h2>TUMBUH BERSAMA.<br><em>BERCERITA BERSAMA.</em></h2><p>Temukan teman, bagikan momen roleplay, dapatkan pengumuman terbaru, dan bentuk masa depan Hope City bersama ribuan warga lainnya.</p><a class="btn btn-discord btn-large" id="discord-link" href="#" target="_blank" rel="noreferrer">◉ &nbsp; Bergabung Discord <span>↗</span></a></div><div class="community-card reveal"><span class="online-pill"><i></i> KOMUNITAS AKTIF</span><div class="big-logo">H</div><h3>HOPE PRIDE<br>COMMUNITY</h3><div class="community-numbers"><div><b id="stat-ucps">23</b><span>UCP TERDAFTAR</span></div><div><b>24/7</b><span>STAFF SUPPORT</span></div></div></div></section>
+    <section class="community section" id="community"><div class="community-copy reveal"><div class="section-kicker"><span>04</span> OUR COMMUNITY</div><h2>TUMBUH BERSAMA.<br><em>BERCERITA BERSAMA.</em></h2><p>Temukan teman, bagikan momen roleplay, dapatkan pengumuman terbaru, dan bentuk masa depan Hope City bersama ribuan warga lainnya.</p><a class="btn btn-discord btn-large" id="discord-link" href="#" target="_blank" rel="noreferrer">◉ &nbsp; Bergabung Discord <span>↗</span></a></div><div class="community-card reveal"><span class="online-pill"><i></i> KOMUNITAS AKTIF</span><div class="big-logo">H</div><h3>HOPE PRIDE<br>COMMUNITY</h3><div class="community-numbers"><div><b id="stat-ucps">23</b><span>UCP TERDAFTAR</span></div><div><b>24/7</b><span>STAFF SUPPORT</span></div></div></div></section>
 
     <section class="cta"><div><span>YOUR STORY IS WAITING</span><h2>HARAPANMU.<br><em>KEBANGGAANMU.</em></h2></div><button class="btn btn-light btn-large open-register">Mulai Ceritamu <span>↗</span></button></section>
   </main>
 
   <section id="dashboard" class="dashboard hidden">
-    <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>CONTROL PANEL</small></span></a><nav id="dash-nav"><button class="active" data-view="overview">⌂ <span>Ringkasan</span></button><button data-view="characters">♙ <span>Character IC</span></button><button data-view="vehicles">◇ <span>Kendaraan</span></button><button data-view="properties">⌂ <span>Properti</span></button><button data-view="inventory">▦ <span>Inventori</span></button><button data-view="salary">↗ <span>Riwayat Gaji</span></button><button data-view="settings">⚙ <span>Pengaturan UCP</span></button><button data-view="admin" id="admin-nav" class="hidden">◆ <span>Admin Panel</span></button></nav><div class="side-bottom"><button id="back-site">← &nbsp; Website</button><button id="logout">↪ &nbsp; Keluar</button></div></aside>
+    <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">H</span><span><b>HOPE PRIDE</b><small>CONTROL PANEL</small></span></a><nav id="dash-nav"><button class="active" data-view="overview">⌂ <span>Ringkasan</span></button><button data-view="characters">♙ <span>Character IC</span></button><button data-view="vehicles">◇ <span>Kendaraan</span></button><button data-view="properties">⌂ <span>Properti</span></button><button data-view="businesses">▤ <span>Bisnis</span></button><button data-view="inventory">▦ <span>Inventori</span></button><button data-view="salary">↗ <span>Riwayat Gaji</span></button><button data-view="settings">⚙ <span>Pengaturan UCP</span></button><button data-view="admin" id="admin-nav" class="hidden">◆ <span>Admin Panel</span></button></nav><div class="side-bottom"><button id="back-site">← &nbsp; Website</button><button id="logout">↪ &nbsp; Keluar</button></div></aside>
     <div class="dash-main"><header class="dash-header"><div><small>USER CONTROL PANEL</small><h2 id="view-title">Ringkasan Akun</h2></div><div class="account-chip"><span id="avatar-letter">H</span><div><b id="account-name">HopePlayer</b><small><i></i> Terverifikasi</small></div></div></header><div id="dash-content" class="dash-content"></div></div>
   </section>
 

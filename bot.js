@@ -61,7 +61,17 @@ const commands = [
     .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
     .addUserOption(o => o.setName('discord').setDescription('Akun Discord baru').setRequired(true)),
   new SlashCommandBuilder().setName('admin-reset-verifikasi').setDescription('Reset status dan buat kode verifikasi UCP baru.')
-    .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
+    .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25)),
+  new SlashCommandBuilder().setName('admin-add-bisnis').setDescription('Tambahkan warung atau toko baru ke database kota.')
+    .addStringOption(o=>o.setName('nama').setDescription('Nama bisnis').setRequired(true).setMaxLength(40))
+    .addIntegerOption(o=>o.setName('jenis').setDescription('1 Warung, 2 Toko, 3 Baju, 4 Khusus').setRequired(true).setMinValue(1).setMaxValue(4))
+    .addIntegerOption(o=>o.setName('harga').setDescription('Harga bisnis').setRequired(true).setMinValue(0))
+    .addNumberOption(o=>o.setName('x').setDescription('Posisi X')).addNumberOption(o=>o.setName('y').setDescription('Posisi Y')).addNumberOption(o=>o.setName('z').setDescription('Posisi Z')),
+  new SlashCommandBuilder().setName('admin-voucher').setDescription('Buat voucher Gold atau VIP baru.')
+    .addStringOption(o=>o.setName('kode').setDescription('Kode voucher').setRequired(true).setMinLength(4).setMaxLength(32))
+    .addIntegerOption(o=>o.setName('gold').setDescription('Jumlah Gold').setMinValue(0))
+    .addIntegerOption(o=>o.setName('vip').setDescription('VIP level 0–3').setMinValue(0).setMaxValue(3))
+    .addIntegerOption(o=>o.setName('hari').setDescription('Durasi dan masa aktif (hari)').setMinValue(1).setMaxValue(365))
 ].map(c => c.toJSON());
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -146,7 +156,7 @@ client.on('interactionCreate', async interaction => {
     }
     if (interaction.commandName === 'bantuan') {
       return interaction.reply({ embeds:[embed('Hope Pride Bot • Bantuan',
-        '**Akun**\n`/id` `/verify` `/akun` `/reset-password`\n\n**Character & Kota**\n`/karakter` `/aset` `/inventori` `/leaderboard` `/server`\n\n**Administrator**\n`/admin-stats` `/admin-ucp` `/admin-player` `/admin-cari` `/admin-discord` `/admin-reset-verifikasi`\n\nSemua informasi privat dikirim secara ephemeral dan dibaca langsung dari database.')], flags:hidden });
+        '**Akun**\n`/id` `/verify` `/akun` `/reset-password`\n\n**Character & Kota**\n`/karakter` `/aset` `/inventori` `/leaderboard` `/server`\n\n**Administrator**\n`/admin-stats` `/admin-ucp` `/admin-player` `/admin-cari` `/admin-discord` `/admin-reset-verifikasi` `/admin-add-bisnis` `/admin-voucher`\n\nSemua informasi privat dikirim secara ephemeral dan dibaca langsung dari database.')], flags:hidden });
     }
     if (interaction.commandName === 'aset') {
       const ucp=await ownUcp(interaction.user.id);
@@ -242,6 +252,22 @@ client.on('interactionCreate', async interaction => {
       const [result]=await db.execute('UPDATE ucp SET verifystatus=0, verifycode=? WHERE username=?',[code,username]);
       if(!result.affectedRows) return interaction.reply({content:'UCP tidak ditemukan.',flags:hidden});
       return interaction.reply({embeds:[embed('Verifikasi UCP Direset',`UCP **${username}** kini belum terverifikasi.\nKode baru: \`${code}\``)],flags:hidden});
+    }
+    if(interaction.commandName==='admin-add-bisnis'){
+      if(!(await requireAdmin(interaction)))return;
+      const name=interaction.options.getString('nama',true),type=interaction.options.getInteger('jenis',true),price=interaction.options.getInteger('harga',true);
+      const x=interaction.options.getNumber('x')||0,y=interaction.options.getNumber('y')||0,z=interaction.options.getNumber('z')||0;
+      await db.execute(`INSERT INTO bisnis (ID,name,type,price,extposx,extposy,extposz,owner,locked,prod) SELECT COALESCE(MAX(ID),-1)+1,?,?,?,?,?,?,'-',1,50 FROM bisnis`,[name,type,price,x,y,z]);
+      const [[b]]=await db.query('SELECT ID,name FROM bisnis ORDER BY ID DESC LIMIT 1');
+      return interaction.reply({embeds:[embed('Bisnis Ditambahkan',`**${b.name}** berhasil dibuat sebagai Business #${b.ID}.`)],flags:hidden});
+    }
+    if(interaction.commandName==='admin-voucher'){
+      if(!(await requireAdmin(interaction)))return;
+      const code=interaction.options.getString('kode',true).toUpperCase(),gold=interaction.options.getInteger('gold')||0,vip=interaction.options.getInteger('vip')||0,days=interaction.options.getInteger('hari')||30;
+      if(!/^[A-Z0-9_-]{4,32}$/.test(code))return interaction.reply({content:'Kode voucher tidak valid.',flags:hidden});
+      const [used]=await db.execute('SELECT id FROM vouchers WHERE code=? LIMIT 1',[code]);if(used.length)return interaction.reply({content:'Kode voucher sudah digunakan.',flags:hidden});
+      const now=Math.floor(Date.now()/1000);await db.execute(`INSERT INTO vouchers (id,code,vip,vip_time,gold,admin,expired) SELECT COALESCE(MAX(id),0)+1,?,?,?,?,?,? FROM vouchers`,[code,vip,vip?now+days*86400:0,gold,interaction.user.username.slice(0,16),now+days*86400]);
+      return interaction.reply({embeds:[embed('Voucher Diterbitkan',`Kode \`${code}\` • Gold ${gold} • VIP ${vip} • ${days} hari`)],flags:hidden});
     }
   } catch (error) {
     console.error(`[BOT] /${interaction.commandName}:`, error);

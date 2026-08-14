@@ -8,7 +8,10 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 - Login UCP menggunakan tabel `ucp` dan verifikasi hash bcrypt `$2b$`
 - Registrasi UCP langsung ke kolom yang sudah tersedia (`username`, `password`, `ip`, `verifycode`, `discordid`, dan lainnya)
 - Dashboard karakter IC dari tabel `players`
-- Kendaraan (`vehicle`), rumah (`houses`), inventori (`inventory`), dan gaji (`salary`)
+- Kendaraan (`vehicle`), rumah (`houses`), bisnis (`bisnis`), inventori (`inventory`), dan gaji (`salary`)
+- Direktori kota realtime untuk warung, toko umum, toko pakaian, dan usaha khusus
+- Admin dapat menambahkan bisnis, voucher, dan family langsung dari panel atau Discord
+- Animasi halus, mobile navigation, responsive cards, dan dukungan reduced-motion
 - Statistik publik dari database dengan graceful fallback saat database offline
 - Session aman, Helmet, rate limit autentikasi, parameterized query, dan validasi input
 
@@ -42,6 +45,9 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 | Character IC | `players.ucp = ucp.username` |
 | Kendaraan | `vehicle.owner = players.reg_id` |
 | Rumah | `houses.owner = players.username` |
+| Warung / toko / pakaian | `bisnis.owner = players.username`, `bisnis.type` |
+| Voucher admin | `vouchers` |
+| Family admin | `familys` |
 | Inventori | `inventory.ownerid = players.reg_id` |
 | Riwayat gaji | `salary.owner = players.reg_id` |
 
@@ -59,6 +65,7 @@ Bot menggunakan database `hope.sql` yang sama dan menyediakan slash command:
 - `/reset-password` — reset password aman melalui Discord yang sudah terhubung
 - `/admin-stats`, `/admin-ucp`, `/admin-player`, `/admin-cari` — pencarian dan alat administrator
 - `/admin-discord`, `/admin-reset-verifikasi` — reset Discord ID dan verifikasi UCP
+- `/admin-add-bisnis`, `/admin-voucher` — membuat bisnis atau voucher langsung dari Discord
 
 Akses admin diberikan jika pengguna memiliki permission **Administrator** Discord, role pada `DISCORD_ADMIN_ROLE_ID`, `ucp.admin > 0`, atau salah satu character miliknya memiliki `players.admin > 0`.
 

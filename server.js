@@ -92,6 +92,18 @@ app.get('/api/public', asyncRoute(async (req, res) => {
   } catch { res.json(publicStatsFallback()); }
 }));
 
+app.get('/api/city/businesses', asyncRoute(async (req, res) => {
+  if (!database()) return res.status(503).json({ error:'Database sedang offline.', businesses:[] });
+  const type = Number(req.query.type || 0);
+  const q = cleanText(req.query.q, 40);
+  const clauses = [], params = [];
+  if ([1,2,3,4].includes(type)) { clauses.push('type = ?'); params.push(type); }
+  if (q) { clauses.push('(name LIKE ? OR owner LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const [rows] = await database().execute(`SELECT ID id, name, owner, type, price, locked, prod, restock FROM bisnis ${where} ORDER BY locked ASC, name ASC LIMIT 60`, params);
+  res.json({ businesses:rows, total:rows.length });
+}));
+
 app.get('/api/session', (req, res) => res.json({ authenticated: Boolean(req.session.user), user: req.session.user || null }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
@@ -137,10 +149,11 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   ]);
   const names = characters.map(c => c.username);
   const ids = characters.map(c => c.reg_id);
-  let vehicles = [], properties = [], inventory = [], salaries = [];
+  let vehicles = [], properties = [], businesses = [], inventory = [], salaries = [];
   if (names.length) {
     const marks = names.map(() => '?').join(',');
     [properties] = await db.query(`SELECT ID id, owner, address, price, locked FROM houses WHERE owner IN (${marks}) ORDER BY ID DESC`, names);
+    [businesses] = await db.query(`SELECT ID id, owner, name, type, price, locked, money, prod, restock FROM bisnis WHERE owner IN (${marks}) ORDER BY ID DESC`, names);
   }
   if (ids.length) {
     const marks = ids.map(() => '?').join(',');
@@ -153,7 +166,9 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
     ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: adminLevel, isAdmin: adminLevel > 0, discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
     characters: characters.map(c => ({ id:c.reg_id, name:c.username, level:c.level, hours:c.hours, minutes:c.minutes, money:c.money, bank:c.bmoney, phone:c.phone, job:jobNames[c.job] || `Job ${c.job}`, faction:factionNames[c.faction] || `Faction ${c.faction}`, factionRank:c.factionrank, vip:c.vip, skin:c.skin, health:c.health, armour:c.armour, hunger:c.hunger, energy:c.energy, lastLogin:c.last_login, vehicles:vehicles.filter(v=>Number(v.owner)===Number(c.reg_id)).length, houses:properties.filter(h=>h.owner===c.username).length })),
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
-    properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })), inventory, salaries
+    properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })),
+    businesses: businesses.map(b => ({ ...b, locked:Boolean(b.locked), typeName:['','Warung & Restoran','Toko Umum','Toko Pakaian','Usaha Khusus'][b.type] || `Bisnis ${b.type}` })),
+    inventory, salaries
   });
 }));
 
@@ -239,6 +254,46 @@ app.post('/api/admin/ucp/:id/reset-verification', requireAdmin, asyncRoute(async
   const [result] = await database().execute('UPDATE ucp SET verifystatus = 0, verifycode = ? WHERE id = ?', [verifyCode, id]);
   if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
   res.json({ ok:true, verifyCode });
+}));
+
+app.post('/api/admin/businesses', requireAdmin, asyncRoute(async (req, res) => {
+  const name = cleanText(req.body.name, 40);
+  const type = Number(req.body.type);
+  const price = Math.max(0, Math.min(2000000000, Number(req.body.price) || 0));
+  const x = Number(req.body.x || 0), y = Number(req.body.y || 0), z = Number(req.body.z || 0);
+  if (name.length < 3 || ![1,2,3,4].includes(type)) return res.status(400).json({ error:'Nama atau jenis bisnis tidak valid.' });
+  if (![x,y,z].every(Number.isFinite)) return res.status(400).json({ error:'Koordinat bisnis tidak valid.' });
+  await database().execute(`INSERT INTO bisnis (ID,name,type,price,extposx,extposy,extposz,owner,locked,prod)
+    SELECT COALESCE(MAX(ID),-1)+1,?,?,?,?,?,?,'-',1,50 FROM bisnis`, [name,type,price,x,y,z]);
+  const [[created]] = await database().query('SELECT ID id,name,type,price FROM bisnis ORDER BY ID DESC LIMIT 1');
+  res.status(201).json({ ok:true, business:created });
+}));
+
+app.post('/api/admin/vouchers', requireAdmin, asyncRoute(async (req, res) => {
+  const code = cleanText(req.body.code, 32).toUpperCase();
+  const vip = Math.max(0, Math.min(3, Number(req.body.vip) || 0));
+  const vipDays = Math.max(0, Math.min(365, Number(req.body.vipDays) || 0));
+  const gold = Math.max(0, Math.min(100000000, Number(req.body.gold) || 0));
+  const expiresDays = Math.max(1, Math.min(365, Number(req.body.expiresDays) || 30));
+  if (!/^[A-Z0-9_-]{4,32}$/.test(code)) return res.status(400).json({ error:'Kode voucher harus 4–32 karakter: huruf, angka, _ atau -.' });
+  const [used] = await database().execute('SELECT id FROM vouchers WHERE code=? LIMIT 1',[code]);
+  if (used.length) return res.status(409).json({ error:'Kode voucher sudah digunakan.' });
+  const vipTime = vipDays ? Math.floor(Date.now()/1000) + vipDays*86400 : 0;
+  const expired = Math.floor(Date.now()/1000) + expiresDays*86400;
+  await database().execute(`INSERT INTO vouchers (id,code,vip,vip_time,gold,admin,expired)
+    SELECT COALESCE(MAX(id),0)+1,?,?,?,?,?,? FROM vouchers`,[code,vip,vipTime,gold,req.session.user.username.slice(0,16),expired]);
+  res.status(201).json({ ok:true, code });
+}));
+
+app.post('/api/admin/families', requireAdmin, asyncRoute(async (req, res) => {
+  const name=cleanText(req.body.name,50), leader=cleanText(req.body.leader,50), motd=cleanText(req.body.motd,100) || 'Welcome to the family';
+  const color=Math.max(0,Number(req.body.color)||0);
+  if(name.length<3 || leader.length<3) return res.status(400).json({error:'Nama family dan leader wajib diisi.'});
+  const [player]=await database().execute('SELECT reg_id FROM players WHERE username=? LIMIT 1',[leader]);
+  if(!player.length) return res.status(404).json({error:'Character leader tidak ditemukan.'});
+  await database().execute(`INSERT INTO familys (ID,name,leader,motd,color) SELECT COALESCE(MAX(ID),-1)+1,?,?,?,? FROM familys`,[name,leader,motd,color]);
+  const [[family]]=await database().query('SELECT ID id,name,leader FROM familys ORDER BY ID DESC LIMIT 1');
+  res.status(201).json({ok:true,family});
 }));
 
 app.get('/api/admin/player', requireAdmin, asyncRoute(async (req, res) => {
