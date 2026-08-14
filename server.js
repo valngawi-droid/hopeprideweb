@@ -48,7 +48,7 @@ function database() {
 }
 
 const demoDashboard = {
-  ucp: { username: 'HopePlayer', verified: true, admin: 0, discordId: '123456789012345678', registered: '14 Agu 2026' },
+  ucp: { username: 'HopePlayer', verified: true, admin: 6, isAdmin: true, discordId: '123456789012345678', registered: '14 Agu 2026' },
   characters: [
     { id: 18, name: 'Raka_Pride', level: 27, hours: 146, money: 128450, bank: 742500, phone: 88021, job: 'Mechanic', faction: 'San Andreas Police', factionRank: 3, vip: 2, skin: 240, health: 92, armour: 35, hunger: 74, energy: 89, lastLogin: '2026-08-13 22:41:09', vehicles: 3, houses: 1 },
     { id: 21, name: 'Nadia_Harper', level: 12, hours: 54, money: 84200, bank: 215000, phone: 77192, job: 'Trucker', faction: 'Civilian', factionRank: 0, vip: 0, skin: 211, health: 100, armour: 0, hunger: 93, energy: 78, lastLogin: '2026-08-12 19:12:30', vehicles: 1, houses: 0 }
@@ -74,6 +74,21 @@ function clientIp(req) { return String(req.ip || '').replace('::ffff:', '').slic
 function cleanText(value, max = 32) { return String(value || '').trim().slice(0, max); }
 function requireAuth(req, res, next) { return req.session.user ? next() : res.status(401).json({ error: 'Silakan masuk ke UCP terlebih dahulu.' }); }
 function asyncRoute(fn) { return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next); }
+async function effectiveAdminLevel(userId) {
+  if (!database()) return 0;
+  const [rows] = await database().execute(`SELECT GREATEST(COALESCE(u.admin,0), COALESCE(MAX(p.admin),0)) level
+    FROM ucp u LEFT JOIN players p ON p.ucp = u.username WHERE u.id = ? GROUP BY u.id, u.admin`, [userId]);
+  return Number(rows[0]?.level || 0);
+}
+async function requireAdmin(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Silakan masuk terlebih dahulu.' });
+  try {
+    const level = await effectiveAdminLevel(req.session.user.id);
+    if (level < 1) return res.status(403).json({ error: 'Akses khusus administrator.' });
+    req.adminLevel = level;
+    next();
+  } catch (error) { next(error); }
+}
 
 app.get('/api/health', asyncRoute(async (req, res) => {
   let db = 'not-configured';
@@ -135,7 +150,7 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const db = database();
   const [[ucpRows], [characters]] = await Promise.all([
     db.execute('SELECT username, admin, verifystatus, discordid, registerdate FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]),
-    db.execute(`SELECT reg_id, username, level, hours, minutes, money, bmoney, phone, job, faction, factionrank, vip, skin, health, armour, hunger, energy, last_login FROM players WHERE ucp = ? ORDER BY reg_id`, [req.session.user.username])
+    db.execute(`SELECT reg_id, username, level, admin, helper, hours, minutes, money, bmoney, phone, job, faction, factionrank, vip, skin, health, armour, hunger, energy, last_login FROM players WHERE ucp = ? ORDER BY reg_id`, [req.session.user.username])
   ]);
   const names = characters.map(c => c.username);
   const ids = characters.map(c => c.reg_id);
@@ -150,12 +165,61 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
     [inventory] = await db.query(`SELECT item, SUM(quantity) quantity FROM inventory WHERE ownerid IN (${marks}) GROUP BY item ORDER BY quantity DESC LIMIT 24`, ids);
     [salaries] = await db.query(`SELECT info, money, date FROM salary WHERE owner IN (${marks}) ORDER BY id DESC LIMIT 10`, ids);
   }
+  const adminLevel = Math.max(Number(ucpRows[0].admin || 0), ...characters.map(c => Number(c.admin || 0)), 0);
   res.json({
-    ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: Number(ucpRows[0].admin), discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
+    ucp: { username: ucpRows[0].username, verified: Boolean(ucpRows[0].verifystatus), admin: adminLevel, isAdmin: adminLevel > 0, discordId: ucpRows[0].discordid, registered: ucpRows[0].registerdate },
     characters: characters.map(c => ({ id:c.reg_id, name:c.username, level:c.level, hours:c.hours, minutes:c.minutes, money:c.money, bank:c.bmoney, phone:c.phone, job:jobNames[c.job] || `Job ${c.job}`, faction:factionNames[c.faction] || `Faction ${c.faction}`, factionRank:c.factionrank, vip:c.vip, skin:c.skin, health:c.health, armour:c.armour, hunger:c.hunger, energy:c.energy, lastLogin:c.last_login, vehicles:vehicles.filter(v=>Number(v.owner)===Number(c.reg_id)).length, houses:properties.filter(h=>h.owner===c.username).length })),
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
     properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })), inventory, salaries
   });
+}));
+
+app.get('/api/admin/overview', requireAdmin, asyncRoute(async (req, res) => {
+  const q = cleanText(req.query.q, 25);
+  const page = Math.max(1, Math.min(10000, Number(req.query.page) || 1));
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const search = q ? `WHERE u.username LIKE ? OR u.discordid LIKE ?` : '';
+  const params = q ? [`%${q}%`, `%${q}%`] : [];
+  const [[counts], [accounts], [totalRows]] = await Promise.all([
+    database().query(`SELECT
+      (SELECT COUNT(*) FROM ucp) ucps,
+      (SELECT COUNT(*) FROM ucp WHERE verifystatus=0) pending,
+      (SELECT COUNT(*) FROM players) characters,
+      (SELECT COUNT(*) FROM players WHERE admin>0) admins,
+      (SELECT COUNT(*) FROM vehicle) vehicles,
+      (SELECT COUNT(*) FROM houses) houses,
+      (SELECT COUNT(*) FROM bisnis) businesses,
+      (SELECT COUNT(*) FROM familys) families`),
+    database().execute(`SELECT u.id, u.username, u.discordid, u.verifystatus, u.admin, u.registerdate,
+      COUNT(p.reg_id) characters, COALESCE(MAX(p.admin),0) game_admin, COALESCE(MAX(p.last_login),'-') last_login
+      FROM ucp u LEFT JOIN players p ON p.ucp=u.username ${search}
+      GROUP BY u.id, u.username, u.discordid, u.verifystatus, u.admin, u.registerdate
+      ORDER BY u.id DESC LIMIT ${limit} OFFSET ${offset}`, params),
+    database().execute(`SELECT COUNT(*) total FROM ucp u ${search}`, params)
+  ]);
+  res.json({ adminLevel:req.adminLevel, counts, accounts, page, pages:Math.max(1, Math.ceil(totalRows[0].total/limit)) });
+}));
+
+app.patch('/api/admin/ucp/:id/verification', requireAdmin, asyncRoute(async (req, res) => {
+  const id = Number(req.params.id);
+  const verified = req.body.verified === true || req.body.verified === 1;
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error:'ID UCP tidak valid.' });
+  const [result] = await database().execute('UPDATE ucp SET verifystatus = ? WHERE id = ?', [verified ? 1 : 0, id]);
+  if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
+  await database().execute('INSERT INTO logstaff (command, admin, adminid, player, playerid, str, time) VALUES (?, ?, -1, ?, ?, ?, ?)',
+    ['WEBVERIFY', req.session.user.username, `UCP#${id}`, id, verified ? 'verified' : 'unverified', Math.floor(Date.now()/1000)]).catch(()=>{});
+  res.json({ ok:true, verified });
+}));
+
+app.get('/api/admin/player', requireAdmin, asyncRoute(async (req, res) => {
+  const name = cleanText(req.query.name, 24);
+  if (!name) return res.status(400).json({ error:'Masukkan nama character.' });
+  const [rows] = await database().execute(`SELECT reg_id, username, ucp, admin, helper, level, vip, money, bmoney,
+    hours, minutes, faction, factionrank, factionlead, family, familyrank, job, job2, phone, warn, jail,
+    jail_time, health, armour, hunger, energy, reg_date, last_login FROM players WHERE username = ? LIMIT 1`, [name]);
+  if (!rows[0]) return res.status(404).json({ error:'Character tidak ditemukan.' });
+  res.json({ player:rows[0] });
 }));
 
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: isProduction ? '7d' : 0 }));

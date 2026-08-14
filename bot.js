@@ -1,0 +1,166 @@
+'use strict';
+
+require('dotenv').config();
+const mysql = require('mysql2/promise');
+const {
+  Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder,
+  EmbedBuilder, PermissionFlagsBits, MessageFlags
+} = require('discord.js');
+
+const required = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DB_HOST', 'DB_USER', 'DB_NAME'];
+const missing = required.filter(key => !process.env[key]);
+if (missing.length) {
+  console.error(`[BOT] Konfigurasi belum lengkap: ${missing.join(', ')}`);
+  console.error('[BOT] Isi .env dan gunakan token BARU dari Discord Developer Portal.');
+  process.exit(1);
+}
+
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'hope',
+  waitForConnections: true,
+  connectionLimit: 4,
+  charset: 'latin1'
+});
+
+const commands = [
+  new SlashCommandBuilder().setName('id').setDescription('Lihat Discord User ID milikmu.'),
+  new SlashCommandBuilder().setName('verify').setDescription('Verifikasi UCP Hope Pride melalui Discord.')
+    .addStringOption(o => o.setName('kode').setDescription('Kode HP-xxxxxx dari pendaftaran UCP').setRequired(true).setMinLength(9).setMaxLength(16)),
+  new SlashCommandBuilder().setName('akun').setDescription('Lihat informasi UCP dan jumlah character milikmu.'),
+  new SlashCommandBuilder().setName('karakter').setDescription('Lihat daftar atau detail character IC milikmu.')
+    .addStringOption(o => o.setName('nama').setDescription('Nama IC, contoh Raka_Pride').setRequired(false).setMaxLength(24)),
+  new SlashCommandBuilder().setName('server').setDescription('Lihat statistik database Hope Pride.'),
+  new SlashCommandBuilder().setName('admin-stats').setDescription('Statistik lengkap khusus administrator.'),
+  new SlashCommandBuilder().setName('admin-ucp').setDescription('Cari dan kelola verifikasi sebuah UCP.')
+    .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
+    .addStringOption(o => o.setName('aksi').setDescription('Tindakan admin').setRequired(true).addChoices(
+      { name: 'Lihat informasi', value: 'info' }, { name: 'Verifikasi', value: 'verify' }, { name: 'Batalkan verifikasi', value: 'unverify' }
+    )),
+  new SlashCommandBuilder().setName('admin-player').setDescription('Lihat data character IC untuk administrasi.')
+    .addStringOption(o => o.setName('nama').setDescription('Nama character IC').setRequired(true).setMaxLength(24))
+].map(c => c.toJSON());
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const rupiah = value => `Rp${Number(value || 0).toLocaleString('id-ID')}`;
+const hidden = MessageFlags.Ephemeral;
+const green = 0x36e18d;
+
+function embed(title, description = '') {
+  return new EmbedBuilder().setColor(green).setTitle(title).setDescription(description).setFooter({ text: 'Hope Pride Roleplay • UCP System' }).setTimestamp();
+}
+async function ownUcp(discordId) {
+  const [rows] = await db.execute('SELECT id, username, admin, verifystatus, verifycode, discordid, registerdate FROM ucp WHERE discordid = ? ORDER BY id LIMIT 1', [discordId]);
+  return rows[0] || null;
+}
+async function adminLevel(interaction) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return 999;
+  if (process.env.DISCORD_ADMIN_ROLE_ID && interaction.member?.roles?.cache?.has(process.env.DISCORD_ADMIN_ROLE_ID)) return 999;
+  const [rows] = await db.execute(`SELECT GREATEST(COALESCE(u.admin,0), COALESCE(MAX(p.admin),0)) level
+    FROM ucp u LEFT JOIN players p ON p.ucp = u.username WHERE u.discordid = ? GROUP BY u.id, u.admin`, [interaction.user.id]);
+  return Number(rows[0]?.level || 0);
+}
+async function requireAdmin(interaction) {
+  if (await adminLevel(interaction) > 0) return true;
+  await interaction.reply({ content: '⛔ Perintah ini hanya dapat digunakan administrator Hope Pride.', flags: hidden });
+  return false;
+}
+
+client.once('ready', async () => {
+  console.log(`[BOT] Login sebagai ${client.user.tag}`);
+  try {
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const route = process.env.DISCORD_GUILD_ID
+      ? Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID)
+      : Routes.applicationCommands(process.env.DISCORD_CLIENT_ID);
+    await rest.put(route, { body: commands });
+    console.log(`[BOT] ${commands.length} slash command berhasil didaftarkan${process.env.DISCORD_GUILD_ID ? ' ke server Discord' : ' secara global'}.`);
+  } catch (error) { console.error('[BOT] Gagal mendaftarkan command:', error.message); }
+});
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  try {
+    if (interaction.commandName === 'id') {
+      return interaction.reply({ embeds: [embed('Discord ID Kamu', `ID: \`${interaction.user.id}\`\nSalin ID ini saat membuat UCP di website.`).setThumbnail(interaction.user.displayAvatarURL())], flags: hidden });
+    }
+    if (interaction.commandName === 'verify') {
+      const code = interaction.options.getString('kode', true).trim().toUpperCase();
+      const [rows] = await db.execute('SELECT id, username, discordid, verifystatus FROM ucp WHERE verifycode = ? LIMIT 1', [code]);
+      const account = rows[0];
+      if (!account) return interaction.reply({ content: '❌ Kode verifikasi tidak ditemukan.', flags: hidden });
+      if (String(account.discordid) !== interaction.user.id) return interaction.reply({ content: '❌ Discord ID akun ini tidak sama dengan Discord ID pendaftaran UCP.', flags: hidden });
+      if (Number(account.verifystatus)) return interaction.reply({ content: `✅ UCP **${account.username}** sudah terverifikasi.`, flags: hidden });
+      await db.execute('UPDATE ucp SET verifystatus = 1 WHERE id = ?', [account.id]);
+      return interaction.reply({ embeds: [embed('Verifikasi Berhasil', `UCP **${account.username}** kini aktif. Kamu sudah dapat login ke website dan membuat character IC.`)], flags: hidden });
+    }
+    if (interaction.commandName === 'akun') {
+      const ucp = await ownUcp(interaction.user.id);
+      if (!ucp) return interaction.reply({ content: '❌ Discord ID ini belum terdaftar sebagai UCP.', flags: hidden });
+      const [[count]] = await db.execute('SELECT COUNT(*) total, COALESCE(MAX(admin),0) admin FROM players WHERE ucp = ?', [ucp.username]);
+      const card = embed(`UCP • ${ucp.username}`).addFields(
+        { name:'Status', value:Number(ucp.verifystatus)?'✅ Terverifikasi':'⏳ Belum diverifikasi', inline:true },
+        { name:'Character IC', value:String(count.total), inline:true }, { name:'Admin Level', value:String(Math.max(Number(ucp.admin), Number(count.admin))), inline:true },
+        { name:'Discord ID', value:`\`${interaction.user.id}\``, inline:false }, { name:'Terdaftar', value:String(ucp.registerdate || '-'), inline:false }
+      );
+      return interaction.reply({ embeds:[card], flags:hidden });
+    }
+    if (interaction.commandName === 'karakter') {
+      const ucp = await ownUcp(interaction.user.id);
+      if (!ucp) return interaction.reply({ content:'❌ UCP tidak ditemukan untuk Discord ID ini.', flags:hidden });
+      const name = interaction.options.getString('nama');
+      const params = name ? [ucp.username, name] : [ucp.username];
+      const [rows] = await db.execute(`SELECT reg_id, username, level, hours, minutes, money, bmoney, phone, job, faction, factionrank, family, vip, admin, helper, last_login FROM players WHERE ucp = ?${name ? ' AND username = ?' : ''} ORDER BY reg_id LIMIT 10`, params);
+      if (!rows.length) return interaction.reply({ content:'Belum ada character IC yang cocok.', flags:hidden });
+      const text = rows.map(p => `**${p.username}** • Level ${p.level} • ${p.hours} jam\nID ${p.reg_id} • Phone ${p.phone || '-'} • Aset tunai ${rupiah(p.money + p.bmoney)}\nFaction ${p.faction} Rank ${p.factionrank} • Terakhir ${p.last_login}`).join('\n\n');
+      return interaction.reply({ embeds:[embed(name ? 'Detail Character IC' : 'Character IC Milikmu', text)], flags:hidden });
+    }
+    if (interaction.commandName === 'server') {
+      const [[p],[u],[v],[h],[b]] = await Promise.all(['players','ucp','vehicle','houses','bisnis'].map(t => db.query(`SELECT COUNT(*) total FROM \`${t}\``)));
+      return interaction.reply({ embeds:[embed('Statistik Hope City').addFields(
+        {name:'Character',value:String(p[0].total),inline:true},{name:'UCP',value:String(u[0].total),inline:true},{name:'Kendaraan',value:String(v[0].total),inline:true},{name:'Rumah',value:String(h[0].total),inline:true},{name:'Bisnis',value:String(b[0].total),inline:true}
+      )] });
+    }
+    if (interaction.commandName === 'admin-stats') {
+      if (!(await requireAdmin(interaction))) return;
+      const [[stats]] = await db.query(`SELECT (SELECT COUNT(*) FROM ucp) ucp, (SELECT COUNT(*) FROM ucp WHERE verifystatus=0) pending,
+        (SELECT COUNT(*) FROM players) players, (SELECT COUNT(*) FROM players WHERE admin>0) admins,
+        (SELECT COUNT(*) FROM vehicle) vehicles, (SELECT COUNT(*) FROM houses WHERE owner!='-') owned_houses,
+        (SELECT COUNT(*) FROM bisnis WHERE owner!='-') owned_businesses`);
+      return interaction.reply({ embeds:[embed('Admin • Database Overview').addFields(Object.entries(stats).map(([k,v])=>({name:k.replaceAll('_',' ').toUpperCase(),value:String(v),inline:true})))], flags:hidden });
+    }
+    if (interaction.commandName === 'admin-ucp') {
+      if (!(await requireAdmin(interaction))) return;
+      const username=interaction.options.getString('username',true), action=interaction.options.getString('aksi',true);
+      const [rows]=await db.execute('SELECT id, username, admin, verifystatus, discordid, registerdate FROM ucp WHERE username = ? LIMIT 1',[username]);
+      if(!rows[0]) return interaction.reply({content:'UCP tidak ditemukan.',flags:hidden});
+      if(action!=='info') await db.execute('UPDATE ucp SET verifystatus = ? WHERE id = ?',[action==='verify'?1:0,rows[0].id]);
+      const u=rows[0], status=action==='verify'?1:action==='unverify'?0:Number(u.verifystatus);
+      return interaction.reply({embeds:[embed(`Admin • UCP ${u.username}`).addFields(
+        {name:'ID',value:String(u.id),inline:true},{name:'Status',value:status?'Terverifikasi':'Belum verifikasi',inline:true},{name:'Admin',value:String(u.admin),inline:true},{name:'Discord ID',value:`\`${u.discordid||'-'}\``},{name:'Terdaftar',value:String(u.registerdate||'-')}
+      )],flags:hidden});
+    }
+    if (interaction.commandName === 'admin-player') {
+      if (!(await requireAdmin(interaction))) return;
+      const name=interaction.options.getString('nama',true);
+      const [rows]=await db.execute('SELECT reg_id, username, ucp, level, admin, helper, faction, factionrank, family, familyrank, money, bmoney, hours, warn, jail, last_login FROM players WHERE username = ? LIMIT 1',[name]);
+      if(!rows[0]) return interaction.reply({content:'Character tidak ditemukan.',flags:hidden});
+      const p=rows[0];
+      return interaction.reply({embeds:[embed(`Admin • ${p.username}`).addFields(
+        {name:'Reg ID / UCP',value:`${p.reg_id} / ${p.ucp}`,inline:false},{name:'Level',value:String(p.level),inline:true},{name:'Admin / Helper',value:`${p.admin} / ${p.helper}`,inline:true},{name:'Faction',value:`${p.faction} (Rank ${p.factionrank})`,inline:true},{name:'Family',value:`${p.family} (Rank ${p.familyrank})`,inline:true},{name:'Uang + Bank',value:rupiah(p.money+p.bmoney),inline:true},{name:'Jam',value:String(p.hours),inline:true},{name:'Warn / Jail',value:`${p.warn} / ${p.jail?'Ya':'Tidak'}`,inline:true},{name:'Login terakhir',value:String(p.last_login||'-')}
+      )],flags:hidden});
+    }
+  } catch (error) {
+    console.error(`[BOT] /${interaction.commandName}:`, error);
+    const payload={content:'⚠️ Terjadi kesalahan saat membaca database. Coba lagi atau hubungi developer.',flags:hidden};
+    if(interaction.replied||interaction.deferred) await interaction.followUp(payload).catch(()=>{}); else await interaction.reply(payload).catch(()=>{});
+  }
+});
+
+client.on('error', error => console.error('[BOT] Discord error:', error));
+process.on('SIGINT', async () => { client.destroy(); await db.end(); process.exit(0); });
+process.on('SIGTERM', async () => { client.destroy(); await db.end(); process.exit(0); });
+client.login(process.env.DISCORD_TOKEN).catch(error => { console.error('[BOT] Login gagal. Pastikan token baru benar:', error.message); process.exit(1); });

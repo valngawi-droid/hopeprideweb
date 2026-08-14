@@ -28,6 +28,23 @@ fi
 # Mencegah Android menidurkan proses jika Termux:API tersedia.
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock || true
 
+BOT_PID=""
+if node -e "require('dotenv').config({quiet:true}); process.exit(process.env.DISCORD_TOKEN ? 0 : 1)"; then
+  echo "Menyalakan Discord Bot..."
+  node bot.js >"$APP_DIR/discord-bot.log" 2>&1 &
+  BOT_PID=$!
+  echo "$BOT_PID" > "$APP_DIR/.discord-bot.pid"
+else
+  echo "[INFO] DISCORD_TOKEN belum diisi; website hidup tanpa bot."
+fi
+
+cleanup() {
+  [[ -n "$BOT_PID" ]] && kill "$BOT_PID" >/dev/null 2>&1 || true
+  command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock || true
+}
+trap cleanup EXIT INT TERM
+
 printf '\nHope Pride Roleplay aktif. Jangan tutup sesi Termux ini.\n'
-printf 'Buka http://127.0.0.1:3000 lalu tekan Ctrl+C untuk berhenti.\n\n'
-exec npm start
+printf 'Buka http://127.0.0.1:3000 lalu tekan Ctrl+C untuk berhenti.\n'
+printf 'Log Discord Bot: %s/discord-bot.log\n\n' "$APP_DIR"
+npm start

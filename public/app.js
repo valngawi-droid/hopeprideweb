@@ -52,6 +52,7 @@ $('#play-trailer').addEventListener('click', () => toast('Trailer Hope Pride seg
 function showDashboard() {
   $('#public-site').classList.add('hidden'); $('footer').classList.add('hidden'); $('.nav').classList.add('hidden'); $('#dashboard').classList.remove('hidden');
   const u = dashboardData.ucp; $('#account-name').textContent = u.username; $('#avatar-letter').textContent = u.username[0].toUpperCase();
+  $('#admin-nav').classList.toggle('hidden', !u.isAdmin && Number(u.admin || 0) < 1);
   renderView('overview'); window.scrollTo(0,0);
 }
 function showSite() { $('#dashboard').classList.add('hidden'); $('#public-site').classList.remove('hidden'); $('footer').classList.remove('hidden'); $('.nav').classList.remove('hidden'); window.scrollTo(0,0); }
@@ -59,7 +60,7 @@ $('#back-site').addEventListener('click', showSite);
 $('#logout').addEventListener('click', async () => { if (!demoMode) await api('/api/auth/logout', {method:'POST'}).catch(()=>{}); dashboardData = null; showSite(); toast('Kamu telah keluar dari UCP'); });
 $('#dash-nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (!b) return; $$('#dash-nav button').forEach(x => x.classList.remove('active')); b.classList.add('active'); renderView(b.dataset.view); });
 
-const titleMap = { overview:'Ringkasan Akun', characters:'Character IC', vehicles:'Kendaraan', properties:'Properti', inventory:'Inventori', salary:'Riwayat Gaji' };
+const titleMap = { overview:'Ringkasan Akun', characters:'Character IC', vehicles:'Kendaraan', properties:'Properti', inventory:'Inventori', salary:'Riwayat Gaji', admin:'Admin Panel' };
 function renderView(view) {
   $('#view-title').textContent = titleMap[view]; const el = $('#dash-content');
   if (view === 'overview') return renderOverview(el);
@@ -68,6 +69,7 @@ function renderView(view) {
   if (view === 'properties') return renderAssets(el, 'properties');
   if (view === 'inventory') return renderInventory(el);
   if (view === 'salary') return renderSalary(el);
+  if (view === 'admin') return renderAdmin(el);
 }
 function charRow(c) { return `<div class="character-row"><div class="char-avatar">${safe(c.name.split('_').map(x=>x[0]).join('').slice(0,2))}</div><div class="row-main"><b>${safe(c.name.replace('_',' '))}</b><small>Level ${c.level} • ${c.hours} jam bermain • ${safe(c.faction)}</small></div><div class="row-value"><b>${money(c.money + c.bank)}</b><small>Total kekayaan</small></div></div>`; }
 function renderOverview(el) {
@@ -83,6 +85,33 @@ function renderCharacters(el){const c=dashboardData.characters;el.innerHTML=`<di
 function renderAssets(el,type){const isVeh=type==='vehicles',items=dashboardData[type];el.innerHTML=`<div class="welcome"><div><h1>${isVeh?'Garasi':'Daftar'} <em>${isVeh?'Kendaraan':'Properti'}.</em></h1><p>Data kepemilikan tersinkron dengan database server.</p></div></div><div class="data-grid">${items.map(x=>isVeh?`<article class="data-card"><span class="symbol">◇</span><h3>${safe(x.name)}</h3><p>${safe(x.owner)} • Model ${x.model} • ID #${x.id}</p><div class="price">Plat ${safe(x.plate||'-')}</div><p>Fuel ${Math.round(x.fuel)}% • ${x.locked?'Terkunci':'Terbuka'}</p></article>`:`<article class="data-card"><span class="symbol">⌂</span><h3>${safe(x.address)}</h3><p>${safe(x.owner)} • Property #${x.id}</p><div class="price">${money(x.price)}</div><p>${x.locked?'Terkunci':'Terbuka'}</p></article>`).join('')||`<div class="empty">Belum ada ${isVeh?'kendaraan':'properti'}.</div>`}</div>`}
 function renderInventory(el){const items=dashboardData.inventory;el.innerHTML=`<div class="welcome"><div><h1>Inventori <em>Character.</em></h1><p>Ringkasan item dari seluruh character dalam satu akun.</p></div></div><div class="panel"><div class="panel-head"><h3>SEMUA ITEM</h3><span></span></div>${items.map(x=>`<div class="inventory-row"><div class="char-avatar">▦</div><div class="row-main"><b>${safe(x.item)}</b><small>Item tersimpan</small></div><div class="row-value"><b>× ${x.quantity}</b><small>Jumlah</small></div></div>`).join('')||'<div class="empty">Inventori kosong.</div>'}</div>`}
 function renderSalary(el){const rows=dashboardData.salaries;el.innerHTML=`<div class="welcome"><div><h1>Riwayat <em>Gaji.</em></h1><p>Catatan paycheck terbaru milik character.</p></div></div><div class="panel"><div class="panel-head"><h3>TRANSAKSI TERBARU</h3><span></span></div>${rows.map(x=>`<div class="salary-row"><div class="char-avatar">↗</div><div class="row-main"><b>${safe(x.info)}</b><small>${safe(x.date)}</small></div><div class="row-value"><b style="color:var(--green)">+ ${money(x.money)}</b><small>Diterima</small></div></div>`).join('')||'<div class="empty">Belum ada riwayat gaji.</div>'}</div>`}
+
+async function renderAdmin(el, query = '') {
+  el.innerHTML = '<div class="empty">Memuat data administrator...</div>';
+  let data;
+  try {
+    data = demoMode ? {
+      adminLevel: 6,
+      counts:{ucps:23,pending:4,characters:43,admins:3,vehicles:393,houses:303,businesses:27,families:2},
+      accounts:[
+        {id:23,username:'HopePlayer',discordid:'123456789012345678',verifystatus:1,admin:1,characters:2,game_admin:6,last_login:'2026-08-13 22:41:09'},
+        {id:22,username:'NewCitizen',discordid:'987654321098765432',verifystatus:0,admin:0,characters:0,game_admin:0,last_login:'-'}
+      ]
+    } : await api('/api/admin/overview'+(query?`?q=${encodeURIComponent(query)}`:''));
+  } catch (error) { el.innerHTML=`<div class="empty">${safe(error.message)}</div>`; return; }
+  const c=data.counts;
+  el.innerHTML=`<div class="welcome"><div><h1>Administrator <em>Control.</em></h1><p>Akses level ${data.adminLevel} • Data aman tanpa menampilkan password atau IP pemain.</p></div><span class="verified-badge">⚙ &nbsp; ADMIN ACCESS</span></div>
+  <div class="metrics"><div class="metric"><small>UCP / PENDING</small><b>${c.ucps} / ${c.pending}</b></div><div class="metric"><small>CHARACTER / ADMIN</small><b>${c.characters} / ${c.admins}</b></div><div class="metric"><small>KENDARAAN</small><b>${c.vehicles}</b></div><div class="metric"><small>RUMAH / BISNIS</small><b>${c.houses} / ${c.businesses}</b></div></div>
+  <div class="panel"><div class="panel-head"><h3>MANAJEMEN UCP</h3><form id="admin-search" class="inline-search"><input name="q" value="${safe(query)}" placeholder="Cari username / Discord ID"><button class="btn btn-primary" type="submit">Cari</button></form></div>
+  <div class="admin-table"><div class="admin-table-head"><span>UCP</span><span>DISCORD ID</span><span>CHARACTER</span><span>STATUS</span><span>AKSI</span></div>${data.accounts.map(u=>`<div class="admin-account"><div><b>${safe(u.username)}</b><small>#${u.id} • Admin ${Math.max(Number(u.admin),Number(u.game_admin))}</small></div><code>${safe(u.discordid||'-')}</code><span>${u.characters}</span><span class="state ${u.verifystatus?'ok':'pending'}">${u.verifystatus?'VERIFIED':'PENDING'}</span><button class="admin-toggle" data-id="${u.id}" data-state="${u.verifystatus?1:0}">${u.verifystatus?'Batalkan':'Verifikasi'}</button></div>`).join('')||'<div class="empty">Tidak ada UCP ditemukan.</div>'}</div></div>`;
+  $('#admin-search',el).addEventListener('submit',e=>{e.preventDefault();renderAdmin(el,new FormData(e.currentTarget).get('q').trim())});
+  $$('.admin-toggle',el).forEach(button=>button.addEventListener('click',async()=>{
+    if(demoMode){button.textContent='Demo saja';toast('Perubahan admin dinonaktifkan pada mode demo');return}
+    button.disabled=true;
+    try{await api(`/api/admin/ucp/${button.dataset.id}/verification`,{method:'PATCH',body:JSON.stringify({verified:button.dataset.state!=='1'})});toast('Status verifikasi berhasil diperbarui');renderAdmin(el,query)}
+    catch(error){toast(error.message);button.disabled=false}
+  }));
+}
 
 async function init() {
   const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')}),{threshold:.08}); $$('.reveal').forEach(e=>observer.observe(e));

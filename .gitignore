@@ -2,5 +2,7 @@ node_modules/
 .env
 npm-debug.log*
 mariadb.log
+discord-bot.log
 .mariadb.pid
+.discord-bot.pid
 .DS_Store

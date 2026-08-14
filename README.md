@@ -48,6 +48,31 @@ Jika variabel `DB_HOST` belum diisi, website tetap berjalan dalam mode tampilan 
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
+## Discord Bot
+
+Bot menggunakan database `hope.sql` yang sama dan menyediakan slash command:
+
+- `/id` — menampilkan Discord User ID
+- `/verify kode` — memverifikasi `ucp.verifycode` dan mencocokkan `ucp.discordid`
+- `/akun` dan `/karakter` — informasi akun serta character IC milik pengguna
+- `/server` — statistik publik server
+- `/admin-stats`, `/admin-ucp`, `/admin-player` — alat administrator
+
+Akses admin diberikan jika pengguna memiliki permission **Administrator** Discord, role pada `DISCORD_ADMIN_ROLE_ID`, `ucp.admin > 0`, atau salah satu character miliknya memiliki `players.admin > 0`.
+
+1. Buka Discord Developer Portal dan buat/reset bot token.
+2. Aktifkan scope `bot` dan `applications.commands` pada URL Generator, lalu undang bot ke server.
+3. Isi `.env` (token tidak boleh dimasukkan ke Git):
+   ```env
+   DISCORD_CLIENT_ID=1457210040871161977
+   DISCORD_TOKEN=token-baru-dari-developer-portal
+   DISCORD_GUILD_ID=id-server-discord
+   DISCORD_ADMIN_ROLE_ID=id-role-admin
+   ```
+4. Jalankan `npm run bot`. Pada Termux, `termux-start.sh` otomatis menyalakan bot jika token telah diisi.
+
+Bot mendaftarkan command ke guild jika `DISCORD_GUILD_ID` tersedia sehingga command muncul cepat. Tanpa Guild ID, command didaftarkan secara global dan dapat membutuhkan waktu untuk muncul.
+
 ## Instalasi otomatis di Termux (Android)
 
 > Gunakan Termux dari **F-Droid atau GitHub resmi**, bukan versi Play Store yang sudah usang.

@@ -7,11 +7,15 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/app.js"
+    "bot": "node bot.js",
+    "check": "node --check server.js && node --check bot.js && node --check public/app.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "discord.js": "^14.27.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
