@@ -48,6 +48,38 @@ Jika variabel `DB_HOST` belum diisi, website tetap berjalan dalam mode tampilan 
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
+## Instalasi otomatis di Termux (Android)
+
+> Gunakan Termux dari **F-Droid atau GitHub resmi**, bukan versi Play Store yang sudah usang.
+
+Di Termux, jalankan:
+
+```bash
+pkg update -y
+pkg install -y git
+git clone -b arena/019ffe50-hopeprideweb https://github.com/valngawi-droid/hopeprideweb.git
+cd hopeprideweb
+bash scripts/termux-install.sh
+```
+
+Installer otomatis memasang Node.js dan MariaDB, mengimpor `hope.sql`, membuat user database terbatas, membuat password acak, serta mengisi `.env`. Sesudah selesai, jalankan:
+
+```bash
+bash scripts/termux-start.sh
+```
+
+Buka **http://127.0.0.1:3000** pada browser HP. Jangan tutup Termux selama server digunakan. Hentikan website dengan `Ctrl+C`; MariaDB dapat dihentikan dengan:
+
+```bash
+bash scripts/termux-stop.sh
+```
+
+Agar Android tidak mematikan server, nonaktifkan optimasi baterai untuk Termux. Jika ingin `termux-wake-lock`, instal aplikasi Termux:API dan jalankan `pkg install termux-api`.
+
+### Membuka dari perangkat lain
+
+Pastikan perangkat berada pada Wi-Fi yang sama. Cari IP HP dengan `ip addr`, lalu buka `http://IP-HP:3000`. Jangan membuka port ini ke internet secara langsung karena server Termux lokal belum memakai HTTPS.
+
 ## Deployment
 
 Jalankan `npm start` menggunakan PM2, systemd, Railway, Render, VPS, atau panel hosting yang mendukung Node.js. Di production, wajib gunakan nilai `SESSION_SECRET` acak dan `NODE_ENV=production` di balik HTTPS/reverse proxy.
