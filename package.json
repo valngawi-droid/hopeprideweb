@@ -1,0 +1,22 @@
+{
+  "name": "hope-pride-roleplay-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Website dan User Control Panel Hope Pride Roleplay untuk database SA-MP.",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0",
+    "mysql2": "^3.14.3"
+  }
+}
