@@ -93,6 +93,12 @@ Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, s
 
 Password registrasi memakai bcrypt cost 12 agar kompatibel dengan hash yang sudah tersimpan dalam dump. PIN aktivasi in-game menggunakan format `HP-######` dan disimpan pada kolom asli `ucp.verifycode`. PIN ditampilkan setelah registrasi serta pada Ringkasan dan Pengaturan UCP. Akun dengan `verifystatus = 0` harus diverifikasi melalui bot Discord sebelum dapat login.
 
+## Balanced expansion: Life Hub & City Explorer
+
+- **Life Hub** menggabungkan identitas, lisensi, vital condition, pekerjaan, legal status, komunikasi, kontak, playlist, vehicle keys, toys, dealership, dan workshop dari tabel asli.
+- **City Asset Explorer** menampilkan properti, dealership, workshop, fuel station, city zone, ATM, parking point, modshop, locker, door, dan gate.
+- Admin level 5+ dapat mengatur faction/family ID, rank, dan faction leader dengan audit `WEBSETFACTION` / `WEBSETFAMILY`.
+
 ## Level 5 Grant Center
 
 Administrator level 5 ke atas memiliki panel khusus untuk memberikan Cash/Bank/Gold/Hope Coin, item inventory, atau kendaraan kepada Character IC. Semua target divalidasi terhadap tabel `players`; kendaraan memakai `vehicle.owner = players.reg_id`; item memakai `inventory.ownerid = players.reg_id`; dan seluruh tindakan dicatat ke `logstaff` sebagai `WEBGIVEMONEY`, `WEBGIVEITEM`, atau `WEBGIVEVEH`.

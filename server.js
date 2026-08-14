@@ -151,6 +151,19 @@ app.get('/api/city/businesses', asyncRoute(async (req, res) => {
   res.json({ businesses:rows, total:rows.length });
 }));
 
+app.get('/api/city/explorer', asyncRoute(async(req,res)=>{
+  if(!database())return res.status(503).json({error:'Database sedang offline.'});
+  const [houses,workshops,dealers,stations,zones,serviceCounts]=await Promise.all([
+    database().query("SELECT ID id,address,owner,price,type,locked FROM houses ORDER BY (owner='-') DESC,ID DESC LIMIT 80"),
+    database().query('SELECT id,name,owner,status,price,component,material FROM workshop ORDER BY id'),
+    database().query('SELECT id,name,ownername,balance,type,price,status,stock,restock FROM dealership ORDER BY id'),
+    database().query('SELECT id,stock,posx,posy,posz FROM gstations ORDER BY id'),
+    database().query('SELECT id,name,type,min_x,min_y,max_x,max_y FROM zone ORDER BY id'),
+    database().query(`SELECT (SELECT COUNT(*) FROM atms) atms,(SELECT COUNT(*) FROM parks) parks,(SELECT COUNT(*) FROM modshop) modshops,(SELECT COUNT(*) FROM lockers) lockers,(SELECT COUNT(*) FROM doors) doors,(SELECT COUNT(*) FROM gates) gates`)
+  ]);
+  res.json({houses:houses[0],workshops:workshops[0],dealerships:dealers[0],gasStations:stations[0],zones:zones[0],services:serviceCounts[0][0]});
+}));
+
 app.get('/api/session', (req, res) => res.json({ authenticated: Boolean(req.session.user), user: req.session.user || null, cookie: req.session.user ? { expires:req.session.cookie.expires, maxAge:req.session.cookie.maxAge, secure:req.session.cookie.secure, host:req.headers.host } : null }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
@@ -556,6 +569,15 @@ app.post('/api/admin/grant/vehicle', requireAdminLevel(5), asyncRoute(async(req,
   const [result]=await database().execute("INSERT INTO vehicle (owner,model,color1,color2,price,fuel,health,plate) VALUES (?,?,?,?,?,100,1000,'NoHave')",[players[0].reg_id,model,color1,color2,price]);
   await auditAdmin(req,'WEBGIVEVEH',character,players[0].reg_id,`${result.insertId}:model${model}`);
   res.status(201).json({ok:true,message:`Kendaraan model ${model} (#${result.insertId}) diberikan ke ${character}.`,vehicleId:result.insertId});
+}));
+
+app.post('/api/admin/manage/organization', requireAdminLevel(5), asyncRoute(async(req,res)=>{
+  const character=cleanText(req.body.character,24),mode=String(req.body.mode||'faction'),id=Number(req.body.id),rank=Number(req.body.rank||0),leader=req.body.leader?1:0;
+  if(!['faction','family'].includes(mode)||!Number.isInteger(id)||id<-(mode==='family'?1:0)||id>255||!Number.isInteger(rank)||rank<0||rank>255)return res.status(400).json({error:'Data organisasi tidak valid.'});
+  const [players]=await database().execute('SELECT reg_id,username FROM players WHERE username=? LIMIT 1',[character]);if(!players[0])return res.status(404).json({error:'Character tidak ditemukan.'});
+  if(mode==='faction')await database().execute('UPDATE players SET faction=?,factionrank=?,factionlead=? WHERE reg_id=?',[id,rank,leader,players[0].reg_id]);else await database().execute('UPDATE players SET family=?,familyrank=? WHERE reg_id=?',[id,rank,players[0].reg_id]);
+  await auditAdmin(req,mode==='faction'?'WEBSETFACTION':'WEBSETFAMILY',character,players[0].reg_id,`${id}:rank${rank}:lead${leader}`);
+  res.json({ok:true,message:`${character} diperbarui ke ${mode} #${id}, rank ${rank}.`});
 }));
 
 app.get('/api/admin/player', requireAdmin, asyncRoute(async (req, res) => {
