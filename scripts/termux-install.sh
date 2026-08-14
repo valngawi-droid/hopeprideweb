@@ -19,7 +19,7 @@ printf '\n\033[1;32mHope Pride Roleplay — Termux Installer\033[0m\n'
 printf 'Folder aplikasi: %s\n\n' "$APP_DIR"
 
 pkg update -y
-pkg install -y nodejs-lts mariadb git openssl
+pkg install -y nodejs-lts mariadb git
 
 cd "$APP_DIR"
 echo "[1/5] Menginstal package website..."
@@ -45,8 +45,9 @@ if ! mariadb-admin ping --silent >/dev/null 2>&1; then
   exit 1
 fi
 
-DB_PASSWORD="$(openssl rand -hex 16)"
-SESSION_SECRET="$(openssl rand -hex 32)"
+# Gunakan crypto bawaan Node.js supaya tidak bergantung pada binary openssl-tool.
+DB_PASSWORD="$(node -e "process.stdout.write(require('crypto').randomBytes(16).toString('hex'))")"
+SESSION_SECRET="$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")"
 
 echo "[3/5] Membuat database dan user website..."
 mariadb -u root <<SQL
