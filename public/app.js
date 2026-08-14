@@ -5,7 +5,6 @@ const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
 const safe = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 let dashboardData = null;
-let demoMode = false;
 
 const modal = $('#auth-modal');
 function openAuth(tab = 'login') { modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false'); switchAuth(tab); }
@@ -36,7 +35,7 @@ $$('.auth-tabs button').forEach(b => b.addEventListener('click', () => switchAut
 
 $('#login-form').addEventListener('submit', async e => {
   e.preventDefault(); const button = $('button[type=submit]', e.currentTarget); button.disabled = true; button.textContent = 'Memeriksa...';
-  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); demoMode = false; showDashboard(); closeAuth(); }
+  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); showDashboard(); closeAuth(); }
   catch (err) { message(err.message); } finally { button.disabled = false; button.innerHTML = 'Masuk ke UCP <span>→</span>'; }
 });
 $('#register-form').addEventListener('submit', async e => {
@@ -44,7 +43,6 @@ $('#register-form').addEventListener('submit', async e => {
   try { const form = new FormData(e.currentTarget); const result = await api('/api/auth/register', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); message(`${result.message} Kode: ${result.verifyCode}`, true); e.currentTarget.reset(); }
   catch (err) { message(err.message); } finally { button.disabled = false; button.innerHTML = 'Buat Akun UCP <span>→</span>'; }
 });
-$('#demo-login').addEventListener('click', async () => { dashboardData = await api('/api/demo'); demoMode = true; showDashboard(); closeAuth(); toast('Mode demo UCP aktif'); });
 
 $$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.copy); } catch {} b.textContent = 'TERSALIN ✓'; toast('IP server disalin'); setTimeout(() => b.textContent = 'SALIN IP', 1800); }));
 $('#play-trailer').addEventListener('click', () => toast('Trailer Hope Pride segera hadir.'));
@@ -57,10 +55,10 @@ function showDashboard() {
 }
 function showSite() { $('#dashboard').classList.add('hidden'); $('#public-site').classList.remove('hidden'); $('footer').classList.remove('hidden'); $('.nav').classList.remove('hidden'); window.scrollTo(0,0); }
 $('#back-site').addEventListener('click', showSite);
-$('#logout').addEventListener('click', async () => { if (!demoMode) await api('/api/auth/logout', {method:'POST'}).catch(()=>{}); dashboardData = null; showSite(); toast('Kamu telah keluar dari UCP'); });
+$('#logout').addEventListener('click', async () => { await api('/api/auth/logout', {method:'POST'}).catch(()=>{}); dashboardData = null; showSite(); toast('Kamu telah keluar dari UCP'); });
 $('#dash-nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (!b) return; $$('#dash-nav button').forEach(x => x.classList.remove('active')); b.classList.add('active'); renderView(b.dataset.view); });
 
-const titleMap = { overview:'Ringkasan Akun', characters:'Character IC', vehicles:'Kendaraan', properties:'Properti', inventory:'Inventori', salary:'Riwayat Gaji', admin:'Admin Panel' };
+const titleMap = { overview:'Ringkasan Akun', characters:'Character IC', vehicles:'Kendaraan', properties:'Properti', inventory:'Inventori', salary:'Riwayat Gaji', settings:'Pengaturan UCP', admin:'Admin Panel' };
 function renderView(view) {
   $('#view-title').textContent = titleMap[view]; const el = $('#dash-content');
   if (view === 'overview') return renderOverview(el);
@@ -69,12 +67,13 @@ function renderView(view) {
   if (view === 'properties') return renderAssets(el, 'properties');
   if (view === 'inventory') return renderInventory(el);
   if (view === 'salary') return renderSalary(el);
+  if (view === 'settings') return renderSettings(el);
   if (view === 'admin') return renderAdmin(el);
 }
 function charRow(c) { return `<div class="character-row"><div class="char-avatar">${safe(c.name.split('_').map(x=>x[0]).join('').slice(0,2))}</div><div class="row-main"><b>${safe(c.name.replace('_',' '))}</b><small>Level ${c.level} • ${c.hours} jam bermain • ${safe(c.faction)}</small></div><div class="row-value"><b>${money(c.money + c.bank)}</b><small>Total kekayaan</small></div></div>`; }
 function renderOverview(el) {
   const d=dashboardData, chars=d.characters, primary=chars[0];
-  el.innerHTML=`<div class="welcome"><div><h1>Selamat datang, <em>${safe(d.ucp.username)}.</em></h1><p>${demoMode?'Kamu sedang melihat data demonstrasi.':'Seluruh data tersinkron langsung dengan server game.'}</p></div><span class="verified-badge">✓ &nbsp; UCP TERVERIFIKASI${demoMode?' — DEMO':''}</span></div>
+  el.innerHTML=`<div class="welcome"><div><h1>Selamat datang, <em>${safe(d.ucp.username)}.</em></h1><p>Seluruh data tersinkron langsung dengan server game.</p></div><span class="verified-badge">✓ &nbsp; UCP TERVERIFIKASI</span></div>
   <div class="metrics"><div class="metric"><small>CHARACTER IC</small><b>${chars.length}</b></div><div class="metric"><small>KENDARAAN</small><b>${d.vehicles.length}</b></div><div class="metric"><small>PROPERTI</small><b>${d.properties.length}</b></div><div class="metric"><small>TOTAL ASET</small><b>${money(chars.reduce((a,c)=>a+Number(c.money)+Number(c.bank),0))}</b></div></div>
   <div class="panel-grid"><div class="panel"><div class="panel-head"><h3>CHARACTER MILIKMU</h3><button data-jump="characters">LIHAT SEMUA →</button></div>${chars.length?chars.map(charRow).join(''):'<div class="empty">Belum ada character IC.</div>'}</div>
   <div class="panel"><div class="panel-head"><h3>KONDISI CHARACTER UTAMA</h3><span></span></div>${primary?`<div class="status-bars">${bar('Health',primary.health)}${bar('Armour',primary.armour)}${bar('Hunger',primary.hunger)}${bar('Energy',primary.energy)}</div>`:'<div class="empty">Tidak ada data.</div>'}</div></div>`;
@@ -86,30 +85,35 @@ function renderAssets(el,type){const isVeh=type==='vehicles',items=dashboardData
 function renderInventory(el){const items=dashboardData.inventory;el.innerHTML=`<div class="welcome"><div><h1>Inventori <em>Character.</em></h1><p>Ringkasan item dari seluruh character dalam satu akun.</p></div></div><div class="panel"><div class="panel-head"><h3>SEMUA ITEM</h3><span></span></div>${items.map(x=>`<div class="inventory-row"><div class="char-avatar">▦</div><div class="row-main"><b>${safe(x.item)}</b><small>Item tersimpan</small></div><div class="row-value"><b>× ${x.quantity}</b><small>Jumlah</small></div></div>`).join('')||'<div class="empty">Inventori kosong.</div>'}</div>`}
 function renderSalary(el){const rows=dashboardData.salaries;el.innerHTML=`<div class="welcome"><div><h1>Riwayat <em>Gaji.</em></h1><p>Catatan paycheck terbaru milik character.</p></div></div><div class="panel"><div class="panel-head"><h3>TRANSAKSI TERBARU</h3><span></span></div>${rows.map(x=>`<div class="salary-row"><div class="char-avatar">↗</div><div class="row-main"><b>${safe(x.info)}</b><small>${safe(x.date)}</small></div><div class="row-value"><b style="color:var(--green)">+ ${money(x.money)}</b><small>Diterima</small></div></div>`).join('')||'<div class="empty">Belum ada riwayat gaji.</div>'}</div>`}
 
+function renderSettings(el) {
+  const u=dashboardData.ucp;
+  el.innerHTML=`<div class="welcome"><div><h1>Pengaturan <em>UCP.</em></h1><p>Kelola keamanan akun dan koneksi Discord.</p></div></div><div class="panel-grid">
+  <div class="panel"><div class="panel-head"><h3>GANTI PASSWORD</h3></div><form id="password-form"><label>PASSWORD SAAT INI<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>PASSWORD BARU<input name="newPassword" type="password" minlength="8" maxlength="72" autocomplete="new-password" required></label><button class="btn btn-primary" type="submit">Simpan Password</button></form></div>
+  <div class="panel"><div class="panel-head"><h3>DISCORD USER ID</h3></div><p class="settings-note">ID saat ini: <code>${safe(u.discordId||'-')}</code>. Mengganti ID akan membatalkan verifikasi dan menghasilkan kode baru.</p><form id="discord-form"><label>DISCORD ID BARU<input name="discordId" inputmode="numeric" minlength="17" maxlength="20" required></label><label>PASSWORD UCP<input name="currentPassword" type="password" autocomplete="current-password" required></label><button class="btn btn-primary" type="submit">Ganti Discord ID</button></form></div></div><div id="settings-message"></div>`;
+  $('#password-form',el).addEventListener('submit',async e=>{e.preventDefault();const b=$('button',e.currentTarget);b.disabled=true;try{const result=await api('/api/me/password',{method:'PATCH',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});$('#settings-message').innerHTML=`<div class="alert success">${safe(result.message)}</div>`;e.currentTarget.reset()}catch(error){$('#settings-message').innerHTML=`<div class="alert">${safe(error.message)}</div>`}finally{b.disabled=false}});
+  $('#discord-form',el).addEventListener('submit',async e=>{e.preventDefault();const b=$('button',e.currentTarget);b.disabled=true;try{const result=await api('/api/me/discord',{method:'PATCH',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});$('#settings-message').innerHTML=`<div class="alert success">${safe(result.message)} Kode: <b>${safe(result.verifyCode)}</b></div>`;dashboardData.ucp.discordId=new FormData(e.currentTarget).get('discordId');dashboardData.ucp.verified=false;e.currentTarget.reset()}catch(error){$('#settings-message').innerHTML=`<div class="alert">${safe(error.message)}</div>`}finally{b.disabled=false}});
+}
+
 async function renderAdmin(el, query = '') {
   el.innerHTML = '<div class="empty">Memuat data administrator...</div>';
   let data;
   try {
-    data = demoMode ? {
-      adminLevel: 6,
-      counts:{ucps:23,pending:4,characters:43,admins:3,vehicles:393,houses:303,businesses:27,families:2},
-      accounts:[
-        {id:23,username:'HopePlayer',discordid:'123456789012345678',verifystatus:1,admin:1,characters:2,game_admin:6,last_login:'2026-08-13 22:41:09'},
-        {id:22,username:'NewCitizen',discordid:'987654321098765432',verifystatus:0,admin:0,characters:0,game_admin:0,last_login:'-'}
-      ]
-    } : await api('/api/admin/overview'+(query?`?q=${encodeURIComponent(query)}`:''));
+    data = await api('/api/admin/overview'+(query?`?q=${encodeURIComponent(query)}`:''));
   } catch (error) { el.innerHTML=`<div class="empty">${safe(error.message)}</div>`; return; }
   const c=data.counts;
   el.innerHTML=`<div class="welcome"><div><h1>Administrator <em>Control.</em></h1><p>Akses level ${data.adminLevel} • Data aman tanpa menampilkan password atau IP pemain.</p></div><span class="verified-badge">⚙ &nbsp; ADMIN ACCESS</span></div>
   <div class="metrics"><div class="metric"><small>UCP / PENDING</small><b>${c.ucps} / ${c.pending}</b></div><div class="metric"><small>CHARACTER / ADMIN</small><b>${c.characters} / ${c.admins}</b></div><div class="metric"><small>KENDARAAN</small><b>${c.vehicles}</b></div><div class="metric"><small>RUMAH / BISNIS</small><b>${c.houses} / ${c.businesses}</b></div></div>
   <div class="panel"><div class="panel-head"><h3>MANAJEMEN UCP</h3><form id="admin-search" class="inline-search"><input name="q" value="${safe(query)}" placeholder="Cari username / Discord ID"><button class="btn btn-primary" type="submit">Cari</button></form></div>
-  <div class="admin-table"><div class="admin-table-head"><span>UCP</span><span>DISCORD ID</span><span>CHARACTER</span><span>STATUS</span><span>AKSI</span></div>${data.accounts.map(u=>`<div class="admin-account"><div><b>${safe(u.username)}</b><small>#${u.id} • Admin ${Math.max(Number(u.admin),Number(u.game_admin))}</small></div><code>${safe(u.discordid||'-')}</code><span>${u.characters}</span><span class="state ${u.verifystatus?'ok':'pending'}">${u.verifystatus?'VERIFIED':'PENDING'}</span><button class="admin-toggle" data-id="${u.id}" data-state="${u.verifystatus?1:0}">${u.verifystatus?'Batalkan':'Verifikasi'}</button></div>`).join('')||'<div class="empty">Tidak ada UCP ditemukan.</div>'}</div></div>`;
+  <div class="admin-table"><div class="admin-table-head"><span>UCP</span><span>DISCORD ID</span><span>CHARACTER</span><span>STATUS</span><span>AKSI</span></div>${data.accounts.map(u=>`<div class="admin-account"><div><b>${safe(u.username)}</b><small>#${u.id} • Admin ${Math.max(Number(u.admin),Number(u.game_admin))}</small></div><code>${safe(u.discordid||'-')}</code><span>${u.characters}</span><span class="state ${u.verifystatus?'ok':'pending'}">${u.verifystatus?'VERIFIED':'PENDING'}</span><div class="admin-actions"><button class="admin-toggle" data-action="verify" data-id="${u.id}" data-state="${u.verifystatus?1:0}">${u.verifystatus?'Batalkan':'Verifikasi'}</button><button class="admin-toggle" data-action="reset" data-id="${u.id}">Reset</button><button class="admin-toggle" data-action="discord" data-id="${u.id}">Discord ID</button></div></div>`).join('')||'<div class="empty">Tidak ada UCP ditemukan.</div>'}</div></div>`;
   $('#admin-search',el).addEventListener('submit',e=>{e.preventDefault();renderAdmin(el,new FormData(e.currentTarget).get('q').trim())});
   $$('.admin-toggle',el).forEach(button=>button.addEventListener('click',async()=>{
-    if(demoMode){button.textContent='Demo saja';toast('Perubahan admin dinonaktifkan pada mode demo');return}
     button.disabled=true;
-    try{await api(`/api/admin/ucp/${button.dataset.id}/verification`,{method:'PATCH',body:JSON.stringify({verified:button.dataset.state!=='1'})});toast('Status verifikasi berhasil diperbarui');renderAdmin(el,query)}
-    catch(error){toast(error.message);button.disabled=false}
+    try{
+      if(button.dataset.action==='verify'){await api(`/api/admin/ucp/${button.dataset.id}/verification`,{method:'PATCH',body:JSON.stringify({verified:button.dataset.state!=='1'})});toast('Status verifikasi diperbarui')}
+      if(button.dataset.action==='reset'){const r=await api(`/api/admin/ucp/${button.dataset.id}/reset-verification`,{method:'POST'});alert(`Kode verifikasi baru: ${r.verifyCode}`)}
+      if(button.dataset.action==='discord'){const id=prompt('Masukkan Discord User ID baru (17–20 digit):');if(!id){button.disabled=false;return}const r=await api(`/api/admin/ucp/${button.dataset.id}/discord`,{method:'PATCH',body:JSON.stringify({discordId:id.trim()})});alert(`Discord ID diubah. Kode verifikasi baru: ${r.verifyCode}`)}
+      renderAdmin(el,query)
+    } catch(error){toast(error.message);button.disabled=false}
   }));
 }
 
@@ -117,7 +121,7 @@ async function init() {
   const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')}),{threshold:.08}); $$('.reveal').forEach(e=>observer.observe(e));
   window.addEventListener('scroll',()=>$('.nav').classList.toggle('sticky',window.scrollY>80));
   setInterval(()=>{$('#server-clock').textContent=new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date())+' WIB'},1000);
-  try { const s=await api('/api/public'); $('#stat-players').textContent=s.players; $('#stat-vehicles').textContent=s.vehicles; $('#stat-properties').textContent=s.properties; $('#stat-ucps').textContent=s.ucps; $('#stat-online').textContent=s.online; } catch {}
-  try { const session=await api('/api/session'); if(session.authenticated){dashboardData=await api('/api/me');demoMode=false;$$('.open-auth').forEach(b=>b.textContent='Buka UCP')} } catch {}
+  try { const s=await api('/api/public'); $('#stat-players').textContent=s.players; $('#stat-vehicles').textContent=s.vehicles; $('#stat-properties').textContent=s.properties; $('#stat-ucps').textContent=s.ucps; $('#stat-online').textContent=s.online; $('#server-status-text').textContent=s.database==='live'?'TERHUBUNG':'DATABASE OFFLINE'; $('#server-status-text').style.color=s.database==='live'?'var(--green)':'#e66f6f'; if(s.serverAddress){$('#server-ip').textContent=s.serverAddress;$('.copy-btn').dataset.copy=s.serverAddress}else{$('#server-ip').textContent='Belum dikonfigurasi';$('.copy-btn').classList.add('hidden')} if(s.discordInvite){$('#discord-link').href=s.discordInvite}else{$('#discord-link').removeAttribute('href')} } catch { $('#server-status-text').textContent='TIDAK TERSEDIA'; }
+  try { const session=await api('/api/session'); if(session.authenticated){dashboardData=await api('/api/me');$$('.open-auth').forEach(b=>b.textContent='Buka UCP')} } catch {}
 }
 init();

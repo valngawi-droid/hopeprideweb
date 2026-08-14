@@ -10,7 +10,6 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 - Dashboard karakter IC dari tabel `players`
 - Kendaraan (`vehicle`), rumah (`houses`), inventori (`inventory`), dan gaji (`salary`)
 - Statistik publik dari database dengan graceful fallback saat database offline
-- Demo UCP agar tampilan bisa diuji tanpa koneksi database
 - Session aman, Helmet, rate limit autentikasi, parameterized query, dan validasi input
 
 ## Menjalankan lokal
@@ -33,7 +32,7 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
    ```
 6. Buka `http://localhost:3000`.
 
-Jika variabel `DB_HOST` belum diisi, website tetap berjalan dalam mode tampilan dan statistik demo. Klik **Lihat Demo UCP** pada dialog login.
+Website adalah mode produksi tanpa data contoh. Jika database belum terhubung, status menampilkan **Database Offline**, statistik menjadi nol, dan autentikasi ditolak sampai konfigurasi diperbaiki.
 
 ## Kesesuaian database
 
@@ -55,8 +54,11 @@ Bot menggunakan database `hope.sql` yang sama dan menyediakan slash command:
 - `/id` — menampilkan Discord User ID
 - `/verify kode` — memverifikasi `ucp.verifycode` dan mencocokkan `ucp.discordid`
 - `/akun` dan `/karakter` — informasi akun serta character IC milik pengguna
-- `/server` — statistik publik server
-- `/admin-stats`, `/admin-ucp`, `/admin-player` — alat administrator
+- `/server`, `/leaderboard`, `/bantuan` — statistik, peringkat, dan bantuan
+- `/aset`, `/inventori` — aset serta item character dari database
+- `/reset-password` — reset password aman melalui Discord yang sudah terhubung
+- `/admin-stats`, `/admin-ucp`, `/admin-player`, `/admin-cari` — pencarian dan alat administrator
+- `/admin-discord`, `/admin-reset-verifikasi` — reset Discord ID dan verifikasi UCP
 
 Akses admin diberikan jika pengguna memiliki permission **Administrator** Discord, role pada `DISCORD_ADMIN_ROLE_ID`, `ucp.admin > 0`, atau salah satu character miliknya memiliki `players.admin > 0`.
 

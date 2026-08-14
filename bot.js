@@ -2,6 +2,8 @@
 
 require('dotenv').config();
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const {
   Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder,
   EmbedBuilder, PermissionFlagsBits, MessageFlags
@@ -34,6 +36,17 @@ const commands = [
   new SlashCommandBuilder().setName('karakter').setDescription('Lihat daftar atau detail character IC milikmu.')
     .addStringOption(o => o.setName('nama').setDescription('Nama IC, contoh Raka_Pride').setRequired(false).setMaxLength(24)),
   new SlashCommandBuilder().setName('server').setDescription('Lihat statistik database Hope Pride.'),
+  new SlashCommandBuilder().setName('bantuan').setDescription('Lihat daftar command Hope Pride Bot.'),
+  new SlashCommandBuilder().setName('aset').setDescription('Lihat jumlah kendaraan, rumah, dan bisnis milikmu.'),
+  new SlashCommandBuilder().setName('inventori').setDescription('Lihat inventori sebuah character IC milikmu.')
+    .addStringOption(o => o.setName('karakter').setDescription('Nama character IC').setRequired(true).setMaxLength(24)),
+  new SlashCommandBuilder().setName('leaderboard').setDescription('Peringkat character Hope Pride.')
+    .addStringOption(o => o.setName('kategori').setDescription('Kategori peringkat').setRequired(true).addChoices(
+      { name:'Level tertinggi', value:'level' }, { name:'Jam bermain', value:'hours' }
+    )),
+  new SlashCommandBuilder().setName('reset-password').setDescription('Ganti password UCP melalui Discord terhubung.')
+    .addStringOption(o => o.setName('password_baru').setDescription('Minimal 8 karakter').setRequired(true).setMinLength(8).setMaxLength(72))
+    .addStringOption(o => o.setName('konfirmasi').setDescription('Ulangi password baru').setRequired(true).setMinLength(8).setMaxLength(72)),
   new SlashCommandBuilder().setName('admin-stats').setDescription('Statistik lengkap khusus administrator.'),
   new SlashCommandBuilder().setName('admin-ucp').setDescription('Cari dan kelola verifikasi sebuah UCP.')
     .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
@@ -41,7 +54,14 @@ const commands = [
       { name: 'Lihat informasi', value: 'info' }, { name: 'Verifikasi', value: 'verify' }, { name: 'Batalkan verifikasi', value: 'unverify' }
     )),
   new SlashCommandBuilder().setName('admin-player').setDescription('Lihat data character IC untuk administrasi.')
-    .addStringOption(o => o.setName('nama').setDescription('Nama character IC').setRequired(true).setMaxLength(24))
+    .addStringOption(o => o.setName('nama').setDescription('Nama character IC').setRequired(true).setMaxLength(24)),
+  new SlashCommandBuilder().setName('admin-cari').setDescription('Cari UCP berdasarkan username, Discord ID, atau character.')
+    .addStringOption(o => o.setName('query').setDescription('Username, Discord ID, atau nama IC').setRequired(true).setMaxLength(32)),
+  new SlashCommandBuilder().setName('admin-discord').setDescription('Ganti Discord ID sebuah UCP dan wajibkan verifikasi ulang.')
+    .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
+    .addUserOption(o => o.setName('discord').setDescription('Akun Discord baru').setRequired(true)),
+  new SlashCommandBuilder().setName('admin-reset-verifikasi').setDescription('Reset status dan buat kode verifikasi UCP baru.')
+    .addStringOption(o => o.setName('username').setDescription('Username UCP').setRequired(true).setMaxLength(25))
 ].map(c => c.toJSON());
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -124,6 +144,47 @@ client.on('interactionCreate', async interaction => {
         {name:'Character',value:String(p[0].total),inline:true},{name:'UCP',value:String(u[0].total),inline:true},{name:'Kendaraan',value:String(v[0].total),inline:true},{name:'Rumah',value:String(h[0].total),inline:true},{name:'Bisnis',value:String(b[0].total),inline:true}
       )] });
     }
+    if (interaction.commandName === 'bantuan') {
+      return interaction.reply({ embeds:[embed('Hope Pride Bot • Bantuan',
+        '**Akun**\n`/id` `/verify` `/akun` `/reset-password`\n\n**Character & Kota**\n`/karakter` `/aset` `/inventori` `/leaderboard` `/server`\n\n**Administrator**\n`/admin-stats` `/admin-ucp` `/admin-player` `/admin-cari` `/admin-discord` `/admin-reset-verifikasi`\n\nSemua informasi privat dikirim secara ephemeral dan dibaca langsung dari database.')], flags:hidden });
+    }
+    if (interaction.commandName === 'aset') {
+      const ucp=await ownUcp(interaction.user.id);
+      if(!ucp) return interaction.reply({content:'❌ Discord ID ini belum terhubung ke UCP.',flags:hidden});
+      const [[v],[h],[b]] = await Promise.all([
+        db.query('SELECT COUNT(*) total FROM vehicle WHERE owner IN (SELECT reg_id FROM players WHERE ucp=?)',[ucp.username]),
+        db.query('SELECT COUNT(*) total FROM houses WHERE owner IN (SELECT username FROM players WHERE ucp=?)',[ucp.username]),
+        db.query('SELECT COUNT(*) total FROM bisnis WHERE owner IN (SELECT username FROM players WHERE ucp=?)',[ucp.username])
+      ]);
+      return interaction.reply({embeds:[embed(`Aset • ${ucp.username}`).addFields(
+        {name:'Kendaraan',value:String(v[0].total),inline:true},{name:'Rumah',value:String(h[0].total),inline:true},{name:'Bisnis',value:String(b[0].total),inline:true}
+      )],flags:hidden});
+    }
+    if (interaction.commandName === 'inventori') {
+      const ucp=await ownUcp(interaction.user.id), name=interaction.options.getString('karakter',true);
+      if(!ucp) return interaction.reply({content:'❌ UCP tidak ditemukan.',flags:hidden});
+      const [chars]=await db.execute('SELECT reg_id FROM players WHERE ucp=? AND username=? LIMIT 1',[ucp.username,name]);
+      if(!chars[0]) return interaction.reply({content:'❌ Character bukan milik UCP ini atau tidak ditemukan.',flags:hidden});
+      const [items]=await db.execute('SELECT item, quantity FROM inventory WHERE ownerid=? AND quantity>0 ORDER BY quantity DESC LIMIT 25',[chars[0].reg_id]);
+      const text=items.length?items.map(i=>`• **${i.item}** × ${i.quantity}`).join('\n'):'Inventori kosong.';
+      return interaction.reply({embeds:[embed(`Inventori • ${name}`,text)],flags:hidden});
+    }
+    if (interaction.commandName === 'leaderboard') {
+      const category=interaction.options.getString('kategori',true);
+      const column=category==='hours'?'hours':'level';
+      const [rows]=await db.query(`SELECT username, level, hours FROM players ORDER BY \`${column}\` DESC, reg_id ASC LIMIT 10`);
+      const text=rows.map((p,i)=>`**${i+1}. ${p.username}** — ${category==='hours'?`${p.hours} jam`:`Level ${p.level}`}`).join('\n');
+      return interaction.reply({embeds:[embed(`Leaderboard • ${category==='hours'?'Jam Bermain':'Level'}`,text)]});
+    }
+    if (interaction.commandName === 'reset-password') {
+      const pass=interaction.options.getString('password_baru',true), confirm=interaction.options.getString('konfirmasi',true);
+      if(pass!==confirm) return interaction.reply({content:'❌ Konfirmasi password tidak sama.',flags:hidden});
+      const ucp=await ownUcp(interaction.user.id);
+      if(!ucp || !Number(ucp.verifystatus)) return interaction.reply({content:'❌ Discord ini tidak terhubung ke UCP terverifikasi.',flags:hidden});
+      const hash=await bcrypt.hash(pass,12);
+      await db.execute('UPDATE ucp SET password=? WHERE id=?',[hash,ucp.id]);
+      return interaction.reply({embeds:[embed('Password Berhasil Diubah',`Password UCP **${ucp.username}** telah diperbarui. Jangan pernah membagikan password kepada siapa pun.`)],flags:hidden});
+    }
     if (interaction.commandName === 'admin-stats') {
       if (!(await requireAdmin(interaction))) return;
       const [[stats]] = await db.query(`SELECT (SELECT COUNT(*) FROM ucp) ucp, (SELECT COUNT(*) FROM ucp WHERE verifystatus=0) pending,
@@ -152,6 +213,35 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({embeds:[embed(`Admin • ${p.username}`).addFields(
         {name:'Reg ID / UCP',value:`${p.reg_id} / ${p.ucp}`,inline:false},{name:'Level',value:String(p.level),inline:true},{name:'Admin / Helper',value:`${p.admin} / ${p.helper}`,inline:true},{name:'Faction',value:`${p.faction} (Rank ${p.factionrank})`,inline:true},{name:'Family',value:`${p.family} (Rank ${p.familyrank})`,inline:true},{name:'Uang + Bank',value:rupiah(p.money+p.bmoney),inline:true},{name:'Jam',value:String(p.hours),inline:true},{name:'Warn / Jail',value:`${p.warn} / ${p.jail?'Ya':'Tidak'}`,inline:true},{name:'Login terakhir',value:String(p.last_login||'-')}
       )],flags:hidden});
+    }
+    if (interaction.commandName === 'admin-cari') {
+      if (!(await requireAdmin(interaction))) return;
+      const q=interaction.options.getString('query',true), like=`%${q}%`;
+      const [rows]=await db.execute(`SELECT u.id, u.username, u.discordid, u.verifystatus, u.admin,
+        COUNT(p.reg_id) characters, COALESCE(MAX(p.admin),0) game_admin
+        FROM ucp u LEFT JOIN players p ON p.ucp=u.username
+        WHERE u.username LIKE ? OR u.discordid LIKE ? OR p.username LIKE ?
+        GROUP BY u.id,u.username,u.discordid,u.verifystatus,u.admin ORDER BY u.id DESC LIMIT 10`,[like,like,like]);
+      if(!rows.length) return interaction.reply({content:'Tidak ada UCP atau character yang cocok.',flags:hidden});
+      const text=rows.map(u=>`**${u.username}** (#${u.id}) • ${u.verifystatus?'Verified':'Pending'}\nDiscord \`${u.discordid||'-'}\` • ${u.characters} character • Admin ${Math.max(Number(u.admin),Number(u.game_admin))}`).join('\n\n');
+      return interaction.reply({embeds:[embed(`Admin • Hasil Pencarian “${q}”`,text)],flags:hidden});
+    }
+    if (interaction.commandName === 'admin-discord') {
+      if (!(await requireAdmin(interaction))) return;
+      const username=interaction.options.getString('username',true), user=interaction.options.getUser('discord',true);
+      const [used]=await db.execute('SELECT username FROM ucp WHERE discordid=? AND username!=? LIMIT 1',[user.id,username]);
+      if(used.length) return interaction.reply({content:`❌ Discord tersebut sudah digunakan UCP **${used[0].username}**.`,flags:hidden});
+      const code=`HP-${crypto.randomInt(100000,999999)}`;
+      const [result]=await db.execute('UPDATE ucp SET discordid=?, verifystatus=0, verifycode=? WHERE username=?',[user.id,code,username]);
+      if(!result.affectedRows) return interaction.reply({content:'UCP tidak ditemukan.',flags:hidden});
+      return interaction.reply({embeds:[embed('Discord ID Diperbarui',`UCP **${username}** sekarang terhubung ke ${user}.\nKode verifikasi baru: \`${code}\`\nGunakan \`/verify ${code}\` dari akun Discord tersebut.`)],flags:hidden});
+    }
+    if (interaction.commandName === 'admin-reset-verifikasi') {
+      if (!(await requireAdmin(interaction))) return;
+      const username=interaction.options.getString('username',true), code=`HP-${crypto.randomInt(100000,999999)}`;
+      const [result]=await db.execute('UPDATE ucp SET verifystatus=0, verifycode=? WHERE username=?',[code,username]);
+      if(!result.affectedRows) return interaction.reply({content:'UCP tidak ditemukan.',flags:hidden});
+      return interaction.reply({embeds:[embed('Verifikasi UCP Direset',`UCP **${username}** kini belum terverifikasi.\nKode baru: \`${code}\``)],flags:hidden});
     }
   } catch (error) {
     console.error(`[BOT] /${interaction.commandName}:`, error);

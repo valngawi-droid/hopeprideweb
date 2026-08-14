@@ -47,28 +47,12 @@ function database() {
   return pool;
 }
 
-const demoDashboard = {
-  ucp: { username: 'HopePlayer', verified: true, admin: 6, isAdmin: true, discordId: '123456789012345678', registered: '14 Agu 2026' },
-  characters: [
-    { id: 18, name: 'Raka_Pride', level: 27, hours: 146, money: 128450, bank: 742500, phone: 88021, job: 'Mechanic', faction: 'San Andreas Police', factionRank: 3, vip: 2, skin: 240, health: 92, armour: 35, hunger: 74, energy: 89, lastLogin: '2026-08-13 22:41:09', vehicles: 3, houses: 1 },
-    { id: 21, name: 'Nadia_Harper', level: 12, hours: 54, money: 84200, bank: 215000, phone: 77192, job: 'Trucker', faction: 'Civilian', factionRank: 0, vip: 0, skin: 211, health: 100, armour: 0, hunger: 93, energy: 78, lastLogin: '2026-08-12 19:12:30', vehicles: 1, houses: 0 }
-  ],
-  vehicles: [
-    { id: 311, owner: 'Raka_Pride', model: 560, name: 'Sultan', plate: 'HPR 042', health: 987, fuel: 84, locked: true },
-    { id: 317, owner: 'Raka_Pride', model: 468, name: 'Sanchez', plate: 'HPR 218', health: 901, fuel: 61, locked: false },
-    { id: 328, owner: 'Nadia_Harper', model: 515, name: 'Roadtrain', plate: 'HPR 991', health: 932, fuel: 47, locked: true }
-  ],
-  properties: [{ id: 129, owner: 'Raka_Pride', address: 'Vinewood Residence #129', price: 950000, locked: true }],
-  inventory: [{ item: 'Medkit', quantity: 4 }, { item: 'Food', quantity: 12 }, { item: 'Repair Kit', quantity: 2 }, { item: 'Phone', quantity: 1 }],
-  salaries: [{ info: 'San Andreas Police — Paycheck', money: 4250, date: '2026-08-13' }]
-};
-
 const vehicleNames = { 400:'Landstalker', 411:'Infernus', 415:'Cheetah', 421:'Washington', 426:'Premier', 429:'Banshee', 445:'Admiral', 451:'Turismo', 468:'Sanchez', 475:'Sabre', 496:'Blista Compact', 507:'Elegant', 515:'Roadtrain', 522:'NRG-500', 541:'Bullet', 560:'Sultan', 562:'Elegy', 565:'Flash', 579:'Huntley' };
 const jobNames = ['Unemployed','Trucker','Bus Driver','Mechanic','Farmer','Fisherman','Miner','Lumberjack','Taxi Driver','Courier','Milkman'];
 const factionNames = ['Civilian','San Andreas Police','San Andreas Government','San Andreas Medical','San Andreas News','San Andreas Judiciary'];
 
 function publicStatsFallback() {
-  return { players: 43, ucps: 23, vehicles: 393, properties: 303, businesses: 27, online: 0, database: 'demo' };
+  return { players: 0, ucps: 0, vehicles: 0, properties: 0, businesses: 0, online: 0, database: 'offline', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' };
 }
 function clientIp(req) { return String(req.ip || '').replace('::ffff:', '').slice(0, 17) || '127.0.0.1'; }
 function cleanText(value, max = 32) { return String(value || '').trim().slice(0, max); }
@@ -104,7 +88,7 @@ app.get('/api/public', asyncRoute(async (req, res) => {
       database().query('SELECT COUNT(*) total FROM vehicle'), database().query('SELECT COUNT(*) total FROM houses'),
       database().query('SELECT COUNT(*) total FROM bisnis')
     ]);
-    res.json({ players: players[0].total, ucps: ucps[0].total, vehicles: vehicles[0].total, properties: houses[0].total, businesses: businesses[0].total, online: 0, database: 'live' });
+    res.json({ players: players[0].total, ucps: ucps[0].total, vehicles: vehicles[0].total, properties: houses[0].total, businesses: businesses[0].total, online: Number(process.env.SAMP_ONLINE_PLAYERS || 0), database: 'live', serverAddress: process.env.SAMP_SERVER_ADDRESS || '', discordInvite: process.env.DISCORD_INVITE_URL || '' });
   } catch { res.json(publicStatsFallback()); }
 }));
 
@@ -114,7 +98,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const username = cleanText(req.body.username, 25);
   const password = String(req.body.password || '');
   if (!username || !password) return res.status(400).json({ error: 'Username dan password wajib diisi.' });
-  if (!database()) return res.status(503).json({ error: 'Database belum dikonfigurasi. Gunakan mode demo untuk melihat UCP.' });
+  if (!database()) return res.status(503).json({ error: 'Database belum dikonfigurasi pada server.' });
   const [rows] = await database().execute('SELECT id, username, password, admin, verifystatus, discordid, registerdate FROM ucp WHERE username = ? LIMIT 1', [username]);
   const user = rows[0];
   if (!user || !user.password || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Username atau password tidak cocok.' });
@@ -144,7 +128,6 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 }));
 
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
-app.get('/api/demo', (req, res) => res.json(demoDashboard));
 
 app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const db = database();
@@ -172,6 +155,31 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
     vehicles: vehicles.map(v => ({ ...v, owner: characters.find(c => Number(c.reg_id) === Number(v.owner))?.username || `Character #${v.owner}`, name: vehicleNames[v.model] || `Vehicle ${v.model}`, locked: Boolean(v.locked) })),
     properties: properties.map(h => ({ ...h, locked: Boolean(h.locked) })), inventory, salaries
   });
+}));
+
+app.patch('/api/me/password', requireAuth, asyncRoute(async (req, res) => {
+  const currentPassword = String(req.body.currentPassword || '');
+  const newPassword = String(req.body.newPassword || '');
+  if (newPassword.length < 8 || newPassword.length > 72) return res.status(400).json({ error:'Password baru harus 8–72 karakter.' });
+  const [rows] = await database().execute('SELECT password FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]);
+  if (!rows[0]?.password || !(await bcrypt.compare(currentPassword, rows[0].password))) return res.status(401).json({ error:'Password saat ini tidak cocok.' });
+  const hash = await bcrypt.hash(newPassword, 12);
+  await database().execute('UPDATE ucp SET password = ? WHERE id = ?', [hash, req.session.user.id]);
+  res.json({ ok:true, message:'Password UCP berhasil diperbarui.' });
+}));
+
+app.patch('/api/me/discord', requireAuth, asyncRoute(async (req, res) => {
+  const currentPassword = String(req.body.currentPassword || '');
+  const discordId = cleanText(req.body.discordId, 32);
+  if (!/^\d{17,20}$/.test(discordId)) return res.status(400).json({ error:'Discord User ID tidak valid.' });
+  const [rows] = await database().execute('SELECT password, discordid FROM ucp WHERE id = ? LIMIT 1', [req.session.user.id]);
+  if (!rows[0]?.password || !(await bcrypt.compare(currentPassword, rows[0].password))) return res.status(401).json({ error:'Password UCP tidak cocok.' });
+  if (String(rows[0].discordid) === discordId) return res.status(400).json({ error:'Discord ID baru sama dengan ID sekarang.' });
+  const [used] = await database().execute('SELECT id FROM ucp WHERE discordid = ? AND id != ? LIMIT 1', [discordId, req.session.user.id]);
+  if (used.length) return res.status(409).json({ error:'Discord ID sudah digunakan UCP lain.' });
+  const verifyCode = `HP-${crypto.randomInt(100000, 999999)}`;
+  await database().execute('UPDATE ucp SET discordid = ?, verifystatus = 0, verifycode = ? WHERE id = ?', [discordId, verifyCode, req.session.user.id]);
+  res.json({ ok:true, verifyCode, message:'Discord ID diperbarui. Verifikasi ulang melalui bot Discord.' });
 }));
 
 app.get('/api/admin/overview', requireAdmin, asyncRoute(async (req, res) => {
@@ -210,6 +218,27 @@ app.patch('/api/admin/ucp/:id/verification', requireAdmin, asyncRoute(async (req
   await database().execute('INSERT INTO logstaff (command, admin, adminid, player, playerid, str, time) VALUES (?, ?, -1, ?, ?, ?, ?)',
     ['WEBVERIFY', req.session.user.username, `UCP#${id}`, id, verified ? 'verified' : 'unverified', Math.floor(Date.now()/1000)]).catch(()=>{});
   res.json({ ok:true, verified });
+}));
+
+app.patch('/api/admin/ucp/:id/discord', requireAdmin, asyncRoute(async (req, res) => {
+  const id = Number(req.params.id);
+  const discordId = cleanText(req.body.discordId, 32);
+  if (!Number.isInteger(id) || id < 1 || !/^\d{17,20}$/.test(discordId)) return res.status(400).json({ error:'ID UCP atau Discord ID tidak valid.' });
+  const [used] = await database().execute('SELECT id FROM ucp WHERE discordid = ? AND id != ? LIMIT 1', [discordId, id]);
+  if (used.length) return res.status(409).json({ error:'Discord ID sudah digunakan UCP lain.' });
+  const verifyCode = `HP-${crypto.randomInt(100000, 999999)}`;
+  const [result] = await database().execute('UPDATE ucp SET discordid = ?, verifystatus = 0, verifycode = ? WHERE id = ?', [discordId, verifyCode, id]);
+  if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
+  res.json({ ok:true, verifyCode });
+}));
+
+app.post('/api/admin/ucp/:id/reset-verification', requireAdmin, asyncRoute(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error:'ID UCP tidak valid.' });
+  const verifyCode = `HP-${crypto.randomInt(100000, 999999)}`;
+  const [result] = await database().execute('UPDATE ucp SET verifystatus = 0, verifycode = ? WHERE id = ?', [verifyCode, id]);
+  if (!result.affectedRows) return res.status(404).json({ error:'UCP tidak ditemukan.' });
+  res.json({ ok:true, verifyCode });
 }));
 
 app.get('/api/admin/player', requireAdmin, asyncRoute(async (req, res) => {
