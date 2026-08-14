@@ -343,7 +343,7 @@ app.get('/api/admin/overview', requireAdmin, asyncRoute(async (req, res) => {
       ORDER BY u.id DESC LIMIT ${limit} OFFSET ${offset}`, params),
     database().execute(`SELECT COUNT(*) total FROM ucp u ${search}`, params)
   ]);
-  res.json({ adminLevel:req.adminLevel, counts, accounts, page, pages:Math.max(1, Math.ceil(totalRows[0].total/limit)) });
+  res.json({ adminLevel:req.adminLevel, counts:counts[0] || {ucps:0,pending:0,characters:0,admins:0,vehicles:0,houses:0,businesses:0,families:0}, accounts, page, pages:Math.max(1, Math.ceil((totalRows[0]?.total||0)/limit)) });
 }));
 
 app.patch('/api/admin/ucp/:id/verification', requireAdmin, asyncRoute(async (req, res) => {
