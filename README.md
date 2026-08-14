@@ -18,6 +18,16 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 - Statistik publik dari database dengan graceful fallback saat database offline
 - Session aman, Helmet, rate limit autentikasi, parameterized query, dan validasi input
 
+## Diagnosis koneksi
+
+Gunakan pemeriksaan terpadu sebelum menyalakan layanan:
+
+```bash
+npm run diagnose
+```
+
+Perintah tersebut menguji kredensial MariaDB, tabel `ucp`, `players`, `web_sessions`, tabel forum, serta validitas token Discord tanpa mencetak token. `termux-start.sh` menjalankannya otomatis dan menampilkan log bot jika proses Discord gagal.
+
 ## Menjalankan lokal
 
 1. Gunakan Node.js 18 atau lebih baru.

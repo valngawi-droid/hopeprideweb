@@ -25,6 +25,12 @@ if ! mariadb-admin ping --silent >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "Memeriksa database dan Discord..."
+if ! node scripts/diagnose.js; then
+  echo "[ERROR] Konfigurasi database belum siap. Jalankan: npm run migrate:termux"
+  exit 1
+fi
+
 # Mencegah Android menidurkan proses jika Termux:API tersedia.
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock || true
 
@@ -34,6 +40,14 @@ if node -e "require('dotenv').config({quiet:true}); process.exit(process.env.DIS
   node bot.js >"$APP_DIR/discord-bot.log" 2>&1 &
   BOT_PID=$!
   echo "$BOT_PID" > "$APP_DIR/.discord-bot.pid"
+  sleep 2
+  if kill -0 "$BOT_PID" >/dev/null 2>&1; then
+    echo "Discord Bot berhasil aktif (PID $BOT_PID)."
+  else
+    echo "[WARNING] Discord Bot gagal aktif. Detail:"
+    tail -n 12 "$APP_DIR/discord-bot.log" || true
+    BOT_PID=""
+  fi
 else
   echo "[INFO] DISCORD_TOKEN belum diisi; website hidup tanpa bot."
 fi

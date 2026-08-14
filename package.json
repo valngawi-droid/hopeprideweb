@@ -10,7 +10,8 @@
     "bot": "node bot.js",
     "schema:check": "node scripts/schema-check.js",
     "migrate:termux": "bash scripts/termux-migrate.sh",
-    "check": "node --check server.js && node --check bot.js && node --check public/app.js && npm run schema:check"
+    "diagnose": "node scripts/diagnose.js",
+    "check": "node --check server.js && node --check bot.js && node --check public/app.js && npm run schema:check && node scripts/session-store-check.js"
   },
   "engines": {
     "node": ">=18"

@@ -21,14 +21,17 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { poli
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false }));
 const sessionStore = process.env.DB_HOST ? new MySQLSessionStore({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'hope',
+  connectionLimit: 4,
   clearExpired: true,
   checkExpirationInterval: 15 * 60 * 1000,
   expiration: 7 * 24 * 60 * 60 * 1000,
   createDatabaseTable: false,
   schema: { tableName:'web_sessions', columnNames:{ session_id:'session_id', expires:'expires', data:'data' } }
-}, {
-  host:process.env.DB_HOST, port:Number(process.env.DB_PORT||3306), user:process.env.DB_USER,
-  password:process.env.DB_PASSWORD, database:process.env.DB_NAME||'hope', charset:'utf8mb4'
 }) : undefined;
 app.use(session({
   name: 'hope.sid',
