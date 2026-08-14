@@ -41,6 +41,7 @@ const sessionStore = process.env.DB_HOST ? new MySQLSessionStore({
   createDatabaseTable: false,
   schema: { tableName:'web_sessions', columnNames:{ session_id:'session_id', expires:'expires', data:'data' } }
 }) : undefined;
+const cookieSecure = canonicalUrl ? canonicalUrl.startsWith('https://') : isProduction;
 app.use(session({
   name: 'hope.sid',
   secret: process.env.SESSION_SECRET || 'development-only-change-this-secret',
@@ -49,7 +50,7 @@ app.use(session({
   saveUninitialized: false,
   rolling: true,
   proxy: true,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 1000 * 60 * 60 * 24 * 7 }
+  cookie: { httpOnly: true, sameSite: 'lax', secure: cookieSecure, path:'/', maxAge: 1000 * 60 * 60 * 24 * 7 }
 }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
@@ -141,7 +142,7 @@ app.get('/api/city/businesses', asyncRoute(async (req, res) => {
   res.json({ businesses:rows, total:rows.length });
 }));
 
-app.get('/api/session', (req, res) => res.json({ authenticated: Boolean(req.session.user), user: req.session.user || null }));
+app.get('/api/session', (req, res) => res.json({ authenticated: Boolean(req.session.user), user: req.session.user || null, cookie: req.session.user ? { expires:req.session.cookie.expires, maxAge:req.session.cookie.maxAge, secure:req.session.cookie.secure, host:req.headers.host } : null }));
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const username = cleanText(req.body.username, 25);

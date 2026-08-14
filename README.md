@@ -29,6 +29,8 @@ ENFORCE_CANONICAL_URL=true
 
 Akses melalui `localhost`, IP lain, dan domain berbeda tidak dapat berbagi cookie menurut aturan keamanan browser. Redirect canonical memastikan seluruh navigasi kembali ke host yang sama. Untuk domain production, ganti `APP_URL` dengan domain HTTPS resmi.
 
+Status login disinkronkan pada semua route. Setelah login, navigasi publik menampilkan **Buka UCP** dan tombol **Keluar**, sehingga pengguna tetap terlihat login ketika membuka forum, portal, direktori, atau panduan.
+
 Halaman aplikasi kini memiliki route sendiri:
 
 - `/` — beranda

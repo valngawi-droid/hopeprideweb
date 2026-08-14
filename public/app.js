@@ -18,6 +18,8 @@ function switchAuth(tab) {
   $('#auth-message').innerHTML = '';
 }
 function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
+function syncAuthUI(authenticated){$$('.open-auth').forEach(b=>b.textContent=authenticated?'Buka UCP':'Masuk');$('#public-logout').classList.toggle('hidden',!authenticated);$('.nav-register').classList.toggle('hidden',authenticated);document.body.classList.toggle('is-authenticated',authenticated)}
+async function logoutSession(){await api('/api/auth/logout',{method:'POST'}).catch(()=>{});dashboardData=null;syncAuthUI(false);showPublicRoute('/');toast('Kamu telah keluar dari UCP')}
 function message(text, success = false) { $('#auth-message').innerHTML = `<div class="alert ${success ? 'success' : ''}">${safe(text)}</div>`; }
 async function api(url, options) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -35,7 +37,7 @@ $$('.auth-tabs button').forEach(b => b.addEventListener('click', () => switchAut
 
 $('#login-form').addEventListener('submit', async e => {
   e.preventDefault(); const button = $('button[type=submit]', e.currentTarget); button.disabled = true; button.textContent = 'Memeriksa...';
-  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); const intended=location.pathname==='/admin'?'admin':location.pathname.startsWith('/ucp/')?location.pathname.split('/')[2]:'overview'; showDashboard(intended); closeAuth(); }
+  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); syncAuthUI(true); const intended=location.pathname==='/admin'?'admin':location.pathname.startsWith('/ucp/')?location.pathname.split('/')[2]:'overview'; showDashboard(intended); closeAuth(); }
   catch (err) { message(err.message); } finally { button.disabled = false; button.innerHTML = 'Masuk ke UCP <span>→</span>'; }
 });
 $('#register-form').addEventListener('submit', async e => {
@@ -64,7 +66,7 @@ function showPublicRoute(path='/',updateHistory=true){
 }
 function handleRoute(updateHistory=false){const path=location.pathname.replace(/\/$/,'')||'/';if(path==='/admin')return dashboardData?showDashboard('admin',updateHistory):(showPublicRoute('/',false),openAuth('login'));if(path==='/ucp'||path.startsWith('/ucp/')){const view=path.split('/')[2]||'overview';return dashboardData?showDashboard(titleMap[view]?view:'overview',updateHistory):(showPublicRoute('/',false),openAuth('login'))}return showPublicRoute(publicRoutes[path]?path:'/',updateHistory)}
 $('#back-site').addEventListener('click',()=>showPublicRoute('/'));
-$('#logout').addEventListener('click',async()=>{await api('/api/auth/logout',{method:'POST'}).catch(()=>{});dashboardData=null;showPublicRoute('/');$$('.open-auth').forEach(b=>b.textContent='Masuk');toast('Kamu telah keluar dari UCP')});
+$('#logout').addEventListener('click',logoutSession);$('#public-logout').addEventListener('click',logoutSession);
 $('#dash-nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)showDashboard(b.dataset.view)});
 document.addEventListener('click',e=>{const link=e.target.closest('[data-route]');if(!link)return;if(link.origin&&link.origin!==location.origin)return;e.preventDefault();const path=link.dataset.route;if(path==='/ucp')return dashboardData?showDashboard():openAuth('login');showPublicRoute(path)});
 window.addEventListener('popstate',()=>handleRoute(false));
@@ -186,7 +188,7 @@ async function init() {
   $('#new-topic-form').addEventListener('submit',async e=>{e.preventDefault();const b=$('button',e.currentTarget);b.disabled=true;try{const result=await api('/api/forum/topics',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});$('#forum-compose').classList.add('hidden');e.currentTarget.reset();await loadForumCategories();openForumTopic(result.id);toast('Topic berhasil dipublikasikan')}catch(error){toast(error.message)}finally{b.disabled=false}});
   setInterval(()=>{$('#server-clock').textContent=new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date())+' WIB'},1000);
   try { const s=await api('/api/public'); $('#stat-players').textContent=s.players; $('#stat-vehicles').textContent=s.vehicles; $('#stat-properties').textContent=s.properties; $('#stat-ucps').textContent=s.ucps; $('#stat-online').textContent=s.online; $('#server-status-text').textContent=s.database==='live'?'TERHUBUNG':'DATABASE OFFLINE'; $('#server-status-text').style.color=s.database==='live'?'var(--green)':'#e66f6f'; $('#portal-online').textContent=s.online;$('#portal-characters').textContent=s.players;$('#portal-vehicles').textContent=s.vehicles;$('#portal-properties').textContent=s.properties;$('#forum-businesses').textContent=s.businesses;$('#forum-characters').textContent=s.players;$('#forum-families').textContent=s.families;$('#portal-db-dot').classList.toggle('offline',s.database!=='live');if(s.serverAddress){$('#server-ip').textContent=s.serverAddress;$('#notice-server-ip').textContent=s.serverAddress;$('.copy-btn').dataset.copy=s.serverAddress;$('.notice-copy').dataset.copy=s.serverAddress}else{$('#server-ip').textContent='Belum dikonfigurasi';$('.copy-btn').classList.add('hidden');$('.notice-copy').classList.add('hidden')} if(s.discordInvite){$('#discord-link').href=s.discordInvite}else{$('#discord-link').removeAttribute('href')} } catch { $('#server-status-text').textContent='TIDAK TERSEDIA'; }
-  try { const activeSession=await api('/api/session'); if(activeSession.authenticated){dashboardData=await api('/api/me');$$('.open-auth').forEach(b=>b.textContent='Buka UCP')} } catch {}
+  try { const activeSession=await api('/api/session'); if(activeSession.authenticated){dashboardData=await api('/api/me');syncAuthUI(true)}else syncAuthUI(false) } catch { syncAuthUI(false) }
   handleRoute(false);
 }
 init();
