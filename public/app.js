@@ -35,7 +35,7 @@ $$('.auth-tabs button').forEach(b => b.addEventListener('click', () => switchAut
 
 $('#login-form').addEventListener('submit', async e => {
   e.preventDefault(); const button = $('button[type=submit]', e.currentTarget); button.disabled = true; button.textContent = 'Memeriksa...';
-  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); showDashboard(); closeAuth(); }
+  try { const form = new FormData(e.currentTarget); await api('/api/auth/login', { method:'POST', body:JSON.stringify(Object.fromEntries(form)) }); dashboardData = await api('/api/me'); const intended=location.pathname==='/admin'?'admin':location.pathname.startsWith('/ucp/')?location.pathname.split('/')[2]:'overview'; showDashboard(intended); closeAuth(); }
   catch (err) { message(err.message); } finally { button.disabled = false; button.innerHTML = 'Masuk ke UCP <span>→</span>'; }
 });
 $('#register-form').addEventListener('submit', async e => {
@@ -48,16 +48,26 @@ $$('[data-copy]').forEach(b => b.addEventListener('click', async () => { try { a
 document.addEventListener('click',async e=>{const button=e.target.closest('.copy-game-pin');if(!button)return;try{await navigator.clipboard.writeText(button.dataset.pin);button.textContent='PIN TERSALIN ✓';toast('PIN in-game berhasil disalin')}catch{toast('Salin PIN secara manual')}});
 $('#play-trailer').addEventListener('click', () => toast('Trailer Hope Pride segera hadir.'));
 
-function showDashboard() {
-  $('#public-site').classList.add('hidden'); $('footer').classList.add('hidden'); $('.nav').classList.add('hidden'); $('#dashboard').classList.remove('hidden');
-  const u = dashboardData.ucp; $('#account-name').textContent = u.username; $('#avatar-letter').textContent = u.username[0].toUpperCase();
-  $('#admin-nav').classList.toggle('hidden', !u.isAdmin && Number(u.admin || 0) < 1);
-  history.replaceState(null,'','#ucp'); renderView('overview'); window.scrollTo(0,0);
+const publicRoutes={ '/portal':'portal','/forums':'forums','/directory':'city','/guide':'guide' };
+function setLocation(path, replace=false){if(location.pathname===path)return;(replace?history.replaceState:history.pushState).call(history,null,'',path)}
+function showDashboard(view='overview', updateHistory=true) {
+  if(!dashboardData)return openAuth('login');
+  if(view==='admin'&&!dashboardData.ucp.isAdmin&&Number(dashboardData.ucp.admin||0)<1){toast('Akses khusus administrator');view='overview'}
+  $('#public-site').classList.add('hidden');$('footer').classList.add('hidden');$('.nav').classList.add('hidden');$('.server-notice').classList.add('hidden');$('#dashboard').classList.remove('hidden');document.body.classList.remove('subpage');
+  const u=dashboardData.ucp;$('#account-name').textContent=u.username;$('#avatar-letter').textContent=u.username[0].toUpperCase();$('#admin-nav').classList.toggle('hidden',!u.isAdmin&&Number(u.admin||0)<1);
+  $$('#dash-nav button').forEach(x=>x.classList.toggle('active',x.dataset.view===view));document.title=`${titleMap[view]} — Hope Pride UCP`;renderView(view);if(updateHistory)setLocation(view==='admin'?'/admin':view==='overview'?'/ucp':`/ucp/${view}`);window.scrollTo(0,0);
 }
-function showSite() { $('#dashboard').classList.add('hidden'); $('#public-site').classList.remove('hidden'); $('footer').classList.remove('hidden'); $('.nav').classList.remove('hidden'); history.replaceState(null,'',location.pathname); window.scrollTo(0,0); }
-$('#back-site').addEventListener('click', showSite);
-$('#logout').addEventListener('click', async () => { await api('/api/auth/logout', {method:'POST'}).catch(()=>{}); dashboardData = null; showSite(); toast('Kamu telah keluar dari UCP'); });
-$('#dash-nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (!b) return; $$('#dash-nav button').forEach(x => x.classList.remove('active')); b.classList.add('active'); renderView(b.dataset.view); });
+function showPublicRoute(path='/',updateHistory=true){
+  $('#dashboard').classList.add('hidden');$('#public-site').classList.remove('hidden');$('footer').classList.remove('hidden');$('.nav').classList.remove('hidden');$('.server-notice').classList.remove('hidden');
+  const sectionId=publicRoutes[path];$$('#public-site > section').forEach(section=>section.classList.toggle('route-hidden',Boolean(sectionId)&&section.id!==sectionId));document.body.classList.toggle('subpage',Boolean(sectionId));
+  $$('.nav-links [data-route]').forEach(a=>a.classList.toggle('active',a.dataset.route===path));const pageTitles={'/':'Hope Pride Roleplay','/portal':'Community Portal — Hope Pride','/forums':'Forums — Hope Pride','/directory':'Direktori Kota — Hope Pride','/guide':'Panduan — Hope Pride'};document.title=pageTitles[path]||pageTitles['/'];if(updateHistory)setLocation(path);window.scrollTo(0,0);
+}
+function handleRoute(updateHistory=false){const path=location.pathname.replace(/\/$/,'')||'/';if(path==='/admin')return dashboardData?showDashboard('admin',updateHistory):(showPublicRoute('/',false),openAuth('login'));if(path==='/ucp'||path.startsWith('/ucp/')){const view=path.split('/')[2]||'overview';return dashboardData?showDashboard(titleMap[view]?view:'overview',updateHistory):(showPublicRoute('/',false),openAuth('login'))}return showPublicRoute(publicRoutes[path]?path:'/',updateHistory)}
+$('#back-site').addEventListener('click',()=>showPublicRoute('/'));
+$('#logout').addEventListener('click',async()=>{await api('/api/auth/logout',{method:'POST'}).catch(()=>{});dashboardData=null;showPublicRoute('/');$$('.open-auth').forEach(b=>b.textContent='Masuk');toast('Kamu telah keluar dari UCP')});
+$('#dash-nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)showDashboard(b.dataset.view)});
+document.addEventListener('click',e=>{const link=e.target.closest('[data-route]');if(!link)return;if(link.origin&&link.origin!==location.origin)return;e.preventDefault();const path=link.dataset.route;if(path==='/ucp')return dashboardData?showDashboard():openAuth('login');showPublicRoute(path)});
+window.addEventListener('popstate',()=>handleRoute(false));
 
 const titleMap = { overview:'Ringkasan Akun', characters:'Character IC', vehicles:'Kendaraan', properties:'Properti', inventory:'Inventori', businesses:'Bisnis', salary:'Riwayat Gaji', progress:'Skill & Koleksi', settings:'Pengaturan UCP', admin:'Admin Panel' };
 function renderView(view) {
@@ -165,6 +175,7 @@ async function init() {
   $('#new-topic-form').addEventListener('submit',async e=>{e.preventDefault();const b=$('button',e.currentTarget);b.disabled=true;try{const result=await api('/api/forum/topics',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});$('#forum-compose').classList.add('hidden');e.currentTarget.reset();await loadForumCategories();openForumTopic(result.id);toast('Topic berhasil dipublikasikan')}catch(error){toast(error.message)}finally{b.disabled=false}});
   setInterval(()=>{$('#server-clock').textContent=new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date())+' WIB'},1000);
   try { const s=await api('/api/public'); $('#stat-players').textContent=s.players; $('#stat-vehicles').textContent=s.vehicles; $('#stat-properties').textContent=s.properties; $('#stat-ucps').textContent=s.ucps; $('#stat-online').textContent=s.online; $('#server-status-text').textContent=s.database==='live'?'TERHUBUNG':'DATABASE OFFLINE'; $('#server-status-text').style.color=s.database==='live'?'var(--green)':'#e66f6f'; $('#portal-online').textContent=s.online;$('#portal-characters').textContent=s.players;$('#portal-vehicles').textContent=s.vehicles;$('#portal-properties').textContent=s.properties;$('#forum-businesses').textContent=s.businesses;$('#forum-characters').textContent=s.players;$('#forum-families').textContent=s.families;$('#portal-db-dot').classList.toggle('offline',s.database!=='live');if(s.serverAddress){$('#server-ip').textContent=s.serverAddress;$('#notice-server-ip').textContent=s.serverAddress;$('.copy-btn').dataset.copy=s.serverAddress;$('.notice-copy').dataset.copy=s.serverAddress}else{$('#server-ip').textContent='Belum dikonfigurasi';$('.copy-btn').classList.add('hidden');$('.notice-copy').classList.add('hidden')} if(s.discordInvite){$('#discord-link').href=s.discordInvite}else{$('#discord-link').removeAttribute('href')} } catch { $('#server-status-text').textContent='TIDAK TERSEDIA'; }
-  try { const activeSession=await api('/api/session'); if(activeSession.authenticated){dashboardData=await api('/api/me');$$('.open-auth').forEach(b=>b.textContent='Buka UCP');if(location.hash==='#ucp')showDashboard()} } catch {}
+  try { const activeSession=await api('/api/session'); if(activeSession.authenticated){dashboardData=await api('/api/me');$$('.open-auth').forEach(b=>b.textContent='Buka UCP')} } catch {}
+  handleRoute(false);
 }
 init();

@@ -18,6 +18,27 @@ Website komunitas dan User Control Panel modern untuk **Hope Pride Roleplay SA-M
 - Statistik publik dari database dengan graceful fallback saat database offline
 - Session aman, Helmet, rate limit autentikasi, parameterized query, dan validasi input
 
+## URL dan halaman terpisah
+
+Gunakan satu URL canonical agar cookie login tidak berpindah host:
+
+```env
+APP_URL=http://127.0.0.1:3000
+ENFORCE_CANONICAL_URL=true
+```
+
+Akses melalui `localhost`, IP lain, dan domain berbeda tidak dapat berbagi cookie menurut aturan keamanan browser. Redirect canonical memastikan seluruh navigasi kembali ke host yang sama. Untuk domain production, ganti `APP_URL` dengan domain HTTPS resmi.
+
+Halaman aplikasi kini memiliki route sendiri:
+
+- `/` — beranda
+- `/portal` — community portal
+- `/forums` — forum
+- `/directory` — direktori kota
+- `/guide` — panduan
+- `/ucp` dan `/ucp/:view` — dashboard UCP
+- `/admin` — Administrator Control
+
 ## Diagnosis koneksi
 
 Gunakan pemeriksaan terpadu sebelum menyalakan layanan:

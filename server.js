@@ -20,6 +20,14 @@ app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false }));
+const canonicalUrl=process.env.APP_URL;
+if(canonicalUrl&&process.env.ENFORCE_CANONICAL_URL==='true'){
+  app.use((req,res,next)=>{
+    if(req.method!=='GET'||!String(req.headers.accept||'').includes('text/html'))return next();
+    try{const canonical=new URL(canonicalUrl);if(req.headers.host!==canonical.host)return res.redirect(302,new URL(req.originalUrl,canonical).toString());}catch{}
+    next();
+  });
+}
 const sessionStore = process.env.DB_HOST ? new MySQLSessionStore({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT || 3306),
